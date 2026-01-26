@@ -1,3 +1,18 @@
+## 1.0.0-alpha.24 (2026-01-26)
+
+### 🩹 Fixes
+
+- Enables collection of coverage data in monorepository scenarios through the new coverageRoot configuration option. ([#59](https://github.com/callstackincubator/react-native-harness/pull/59))
+- Added support for web platform with all functionalities supported by the native equivalents, including UI testing capabilities. ([#62](https://github.com/callstackincubator/react-native-harness/pull/62))
+- Added `forwardClientLogs` option to forward React Native logs to terminal during tests ([#63](https://github.com/callstackincubator/react-native-harness/pull/63))
+- Add interactive Harness init wizard to guide users through setup and config. ([#60](https://github.com/callstackincubator/react-native-harness/pull/60))
+
+### ❤️ Thank You
+
+- Miklós Fazekas @mfazekas
+- Sylvain Abadie
+- Szymon Chmal @V3RON
+
 ## 1.0.0-alpha.23 (2026-01-19)
 
 ### 🩹 Fixes
