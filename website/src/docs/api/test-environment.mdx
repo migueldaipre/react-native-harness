@@ -1,0 +1,101 @@
+# Test Environment & Lifecycle
+
+Understanding the execution lifecycle of React Native Harness is key to configuring complex test suites and ensuring test isolation.
+
+## Execution Lifecycle
+
+When you run `react-native-harness`, the following process occurs for each test file:
+
+1.  **Node.js Setup**: The CLI loads your configuration and prepares the Metro bundler.
+2.  **App Preparation**: The target app is launched or brought to the foreground on the device.
+3.  **Harness Initialization**: The native bridge is established.
+4.  **`setupFiles`**: Global setup files are evaluated in the app environment.
+5.  **Test Collection**: The test file is evaluated to build a structure of `describe` and `it` blocks.
+    - **`setupFilesAfterEnv`**: These files are evaluated *during* this phase.
+6.  **Execution**: Tests are run serially on the device.
+7.  **Teardown**: Results are sent back to the CLI, and the environment is cleaned up.
+
+---
+
+## Setup Files
+
+Harness supports two types of setup files, configured in your `jest.harness.config.mjs`.
+
+### `setupFiles`
+Executed **before** the testing environment is initialized.
+- **Context**: Runs in the app's JavaScript environment, but *before* the Test Runner has initialized the test framework (Jest).
+- **Limitations**: `describe`, `it`, `expect`, and `beforeEach` are **not available**.
+- **Use Case**: Polyfilling global APIs that the environment or third-party libraries expect to exist immediately upon import.
+
+```javascript
+// jest.setup.js
+// Polyfill URL for React Native
+import 'react-native-url-polyfill/auto';
+
+// Polyfill TextEncoder
+import { TextEncoder, TextDecoder } from 'text-encoding';
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+```
+
+### `setupFilesAfterEnv`
+Executed **after** the testing environment is initialized, but before the test file itself.
+- **Context**: Runs immediately before the test file is executed. The test framework is fully loaded.
+- **Capabilities**: Full access to `describe`, `it`, `expect`, `beforeEach`, and Harness APIs like `mock`, `spyOn`, `clearAllMocks`, etc.
+- **Use Case**: Configuring global mocks, custom matchers, or global setup/teardown hooks.
+
+```javascript
+// jest.setupAfterEnv.js
+import { beforeEach, afterEach, clearAllMocks, mock } from 'react-native-harness';
+
+// Global cleanup
+afterEach(() => {
+  clearAllMocks();
+});
+
+// Mock a global library that is used in many tests
+mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+```
+
+---
+
+## Isolation and Persistence
+
+### Environment Reset
+By default, Harness ensures test isolation by resetting the environment between test files.
+
+- **`resetEnvironmentBetweenTestFiles`**: (Default: `true`) When enabled, the app is fully restarted between different test files. This prevents state leakage (like singleton native modules or global variables) from affecting subsequent tests.
+
+### Native Module Mocking
+Mocks created via `mock()` are tied to the module cache. Use `resetModules()` in an `afterEach` hook to ensure mocks don't leak between individual tests within the same file.
+
+---
+
+## Native Crash Detection
+
+Testing native modules often involves calling code that might cause the host application to crash. Standard test runners often hang or report a generic "Device disconnected" error in these cases.
+
+Harness includes a built-in **Native Crash Monitor**:
+
+- **`detectNativeCrashes`**: (Default: `true`) When enabled, Harness actively monitors the native process. If the app crashes, Harness catches the failure, reports a `NativeCrashError` for the current test, and automatically restarts the app to continue with the remaining test files.
+- **`crashDetectionInterval`**: (Default: `500ms`) How often the CLI polls the device to ensure the app is still alive.
+
+---
+
+## Forwarding Client Logs
+
+To aid in debugging, you can forward all `console` output from the device to your terminal.
+
+```javascript title="rn-harness.config.mjs"
+export default {
+  // ...
+  forwardClientLogs: true,
+}
+```
+
+When enabled, logs from the device appear in your terminal with indicators:
+- ` LOG ` - `console.log`
+- ` WARN ` - `console.warn`
+- ` ERROR ` - `console.error`

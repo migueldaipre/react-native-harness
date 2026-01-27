@@ -78,161 +78,33 @@ For Expo projects, the `entryPoint` should be set to the path specified in the `
 
 ## All Configuration Options
 
-```typescript
-{
-  // Required: Entry point file for your React Native app
-  entryPoint: string;
+| Option | Description |
+| :--- | :--- |
+| `entryPoint` | **Required.** Path to your React Native app's entry point file. |
+| `appRegistryComponentName` | **Required.** Name of the component registered with AppRegistry. |
+| `runners` | **Required.** Array of test runners (at least one required). |
+| `defaultRunner` | Default runner to use when none specified. |
+| `bridgeTimeout` | Bridge timeout in milliseconds (default: `60000`). |
+| `bundleStartTimeout` | Bundle start timeout in milliseconds (default: `15000`). |
+| `maxAppRestarts` | Maximum number of app restarts when app fails to report ready (default: `2`). |
+| `resetEnvironmentBetweenTestFiles` | Reset environment between test files (default: `true`). |
+| `webSocketPort` | Web socket port for bridge communication (default: `3001`). |
+| `detectNativeCrashes` | Detect native app crashes during test execution (default: `true`). |
+| `crashDetectionInterval` | Interval in milliseconds to check for native crashes (default: `500`). |
+| `coverage` | Coverage configuration object. |
+| `coverage.root` | Root directory for coverage instrumentation (default: `process.cwd()`). |
+| `forwardClientLogs` | Forward console logs from the app to the terminal (default: `false`). |
 
-  // Required: Name of the component registered with AppRegistry
-  appRegistryComponentName: string;
-
-  // Required: Array of test runners (at least one required)
-  runners: Array<TestRunnerConfig>;
-
-  // Optional: Default runner to use when none specified
-  defaultRunner?: string;
-
-  // Optional: Bridge timeout in milliseconds (default: 60000)
-  bridgeTimeout?: number;
-
-  // Optional: Bundle start timeout in milliseconds (default: 15000)
-  bundleStartTimeout?: number;
-
-  // Optional: Maximum number of app restarts when app fails to report ready (default: 2)
-  maxAppRestarts?: number;
-
-  // Optional: Reset environment between test files (default: true)
-  resetEnvironmentBetweenTestFiles?: boolean;
-
-  // Optional: Coverage configuration
-  coverage?: {
-    // Root directory for coverage instrumentation in monorepos (default: process.cwd())
-    root?: string;
-  };
-
-  // Forward console.log/warn/error/etc from the app to the terminal (default: false)
-  forwardClientLogs?: boolean;
-}
-```
 
 ## Test Runners
 
 A test runner defines how tests are executed on a specific platform. React Native Harness uses platform-specific packages to create runners with type-safe configurations.
 
-### Android Runner
+For detailed installation and configuration instructions, please refer to the platform-specific guides:
 
-Install the Android platform package:
-
-<PackageManagerTabs command="install @react-native-harness/platform-android" />
-
-**Usage:**
-
-```javascript
-import {
-  androidPlatform,
-  androidEmulator,
-  physicalAndroidDevice,
-} from '@react-native-harness/platform-android';
-
-// Emulator configuration
-androidPlatform({
-  name: 'android-emulator',
-  device: androidEmulator('Pixel_8_API_35'),
-  bundleId: 'com.myapp.debug',
-});
-
-// Physical device configuration
-androidPlatform({
-  name: 'android-device',
-  device: physicalAndroidDevice('Motorola', 'Moto G72'),
-  bundleId: 'com.myapp.debug',
-});
-```
-
-### Apple (iOS) Runner
-
-Install the Apple platform package:
-
-<PackageManagerTabs command="install @react-native-harness/platform-apple" />
-
-**Usage:**
-
-```javascript
-import {
-  applePlatform,
-  appleSimulator,
-  applePhysicalDevice,
-} from '@react-native-harness/platform-apple';
-
-// Simulator configuration
-applePlatform({
-  name: 'ios-simulator',
-  device: appleSimulator('iPhone 16 Pro', '18.0'),
-  bundleId: 'com.myapp',
-});
-
-// Physical device configuration
-applePlatform({
-  name: 'ios-device',
-  device: applePhysicalDevice('iPhone (Your Name)'),
-  bundleId: 'com.myapp',
-});
-```
-
-### Vega Runner
-
-Install the Vega platform package:
-
-<PackageManagerTabs command="install @react-native-harness/platform-vega" />
-
-**Usage:**
-
-```javascript
-import {
-  vegaPlatform,
-  vegaEmulator,
-} from '@react-native-harness/platform-vega';
-
-vegaPlatform({
-  name: 'vega',
-  device: vegaEmulator('VegaTV_1'),
-  bundleId: 'com.myapp',
-});
-```
-
-### Web Runner
-
-:::danger Experimental
-Web support is currently an **experimental feature**. It may not work in all scenarios and the API is subject to change. Use with caution.
-:::
-
-Install the Web platform package:
-
-<PackageManagerTabs command="install @react-native-harness/platform-web" />
-
-**Usage:**
-
-```javascript
-import {
-  webPlatform,
-  chromium,
-  chrome,
-  firefox,
-  webkit,
-} from '@react-native-harness/platform-web';
-
-// Using Chromium (headless by default)
-webPlatform({
-  name: 'web',
-  browser: chromium('http://localhost:3000'),
-});
-
-// Using a specific browser channel or non-headless mode
-webPlatform({
-  name: 'chrome',
-  browser: chrome('http://localhost:3000', { headless: false }),
-});
-```
+- [**Android**](/docs/platforms/android)
+- [**iOS**](/docs/platforms/ios)
+- [**Web**](/docs/platforms/web)
 
 ## Default Runner
 
@@ -327,6 +199,20 @@ When set to 0, automatic app restarting is disabled. Higher values provide more 
 - No bundling activity is detected within the `bundleStartTimeout` period
 - The bridge fails to establish communication within the `bridgeTimeout` period
 
+## Web Socket Port
+
+The port used for the WebSocket bridge communication between the CLI and the device.
+
+```javascript
+{
+  webSocketPort: 4000,
+}
+```
+
+**Default:** 3001
+
+Change this if port 3001 is already in use on your system.
+
 ## Environment-Specific Configurations
 
 You can create different configurations for different environments:
@@ -391,48 +277,4 @@ Without specifying `coverageRoot`, babel-plugin-istanbul may skip instrumenting 
 Set `coverageRoot` when you notice 0% coverage in your reports or when source files are not being instrumented for coverage. This commonly occurs in create-react-native-library projects and other monorepo setups.
 :::
 
-## Log Forwarding
 
-React Native Harness can forward `console.log`, `console.warn`, `console.error`, and other console method calls from your app to the terminal output. This is useful for debugging tests and understanding what your app is doing during test execution.
-
-```javascript
-{
-  forwardClientLogs: true,
-}
-```
-
-**Default:** `false`
-
-When enabled, you'll see logs in your terminal with styled level indicators:
-
-```
- LOG  Hello from the app!
- WARN  This is a warning
- ERROR  Something went wrong
- INFO  Informational message
- DEBUG  Debug details
-```
-
-## Finding Device and Simulator IDs
-
-### Android Emulators
-
-List available Android emulators:
-
-```bash
-emulator -list-avds
-```
-
-### iOS Simulators
-
-List available iOS simulators:
-
-```bash
-xcrun simctl list devices
-```
-
-The device ID is the name shown in the simulator list (e.g., "iPhone 16 Pro", "iPad Air").
-
-:::info System Version Required
-React Native Harness requires the iOS version to be specified when using `appleSimulator()` because there can be multiple simulators with the same device name but different iOS versions (e.g., "iPhone 16 Pro" with iOS 17.0 and "iPhone 16 Pro" with iOS 18.0). The system version ensures Harness targets the correct simulator.
-:::

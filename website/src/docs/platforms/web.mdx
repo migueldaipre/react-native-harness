@@ -1,0 +1,66 @@
+# Web Platform
+
+React Native Harness provides experimental support for the Web platform. This allows you to run your tests in real browser environments using **Playwright**.
+
+## Overview
+
+Unlike Android and iOS where tests run on emulators or physical devices, Web tests run in a browser instance (Chromium, Firefox, or WebKit). Harness uses a Playwright-based bridge to communicate with the browser and simulate user interactions at the browser level.
+
+## Getting Started
+
+The easiest way to set up Web support is through the [Initialization Wizard](/docs/api/cli#init).
+
+### Manual Setup
+
+1. **Install the platform package:**
+   ```bash
+   npm install --save-dev @react-native-harness/platform-web
+   ```
+
+2. **Configure the runner:**
+   Update your `rn-harness.config.mjs`:
+   ```javascript
+   import { webPlatform, chromium } from '@react-native-harness/platform-web';
+
+   export default {
+     // ...
+     runners: [
+       webPlatform({
+         name: 'web',
+         browser: chromium('http://localhost:3000'), // Your dev server URL
+       }),
+     ],
+   };
+   ```
+
+## Browser Configuration
+
+Harness supports all major browser engines through helper factories.
+
+### Helper Factories
+
+- `chromium(url, options)`
+- `chrome(url, options)`
+- `firefox(url, options)`
+- `webkit(url, options)`
+
+### Options
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `headless` | `boolean` | `true` | Whether to run the browser in headless mode. |
+| `channel` | `string` | - | Browser channel (e.g., `'chrome'`, `'msedge'`). |
+| `executablePath` | `string` | - | Path to a specific browser binary on your system. |
+
+## UI Testing on Web
+
+When using `@react-native-harness/ui` on the Web, interactions are simulated using Playwright's mouse and keyboard APIs:
+
+- **`userEvent.press()`**: Dispatches a real browser click at the element's exact coordinates.
+- **`userEvent.type()`**: Simulates a sequence of keyboard events (`keydown`, `keypress`, `input`, `keyup`) ensuring full compatibility with React Native Web's event handling.
+- **Screenshots**: Captured via Playwright's screenshot API, providing consistent visual snapshots across environments.
+
+## Requirements
+
+- **Dev Server**: Your web application must be running (e.g., via `webpack-dev-server` or `expo start --web`) before running tests.
+- **Playwright Browsers**: Ensure Playwright browsers are installed in your environment.

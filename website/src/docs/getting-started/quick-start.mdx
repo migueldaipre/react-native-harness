@@ -33,7 +33,7 @@ Run the wizard from your project root:
 
 The wizard will:
 - Ask for your project type (Expo or React Native CLI)
-- Help you select platforms (Android/iOS)
+- Help you select platforms (Android, iOS, or Web)
 - Find available devices and simulators
 - Generate bundle IDs and create configuration files
 - Install required platform packages
@@ -99,27 +99,6 @@ The `entryPoint` and `appRegistryComponentName` properties tell React Native Har
 
 :::tip Expo
 For Expo projects, the `entryPoint` should be set to the path specified in the `main` property of package.json. The `appRegistryComponentName` is typically set to `main` for Expo apps.
-:::
-
-### 3. Update Metro Configuration (Required)
-
-Whether you use the wizard or manual setup, you still need to update your Metro configuration so React Native Harness can bundle its tests:
-
-```javascript
-const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
-const { withRnHarness } = require('react-native-harness/metro');
-
-const defaultConfig = getDefaultConfig(__dirname);
-
-const customConfig = {
-  // Your existing Metro config
-};
-
-module.exports = withRnHarness(mergeConfig(defaultConfig, customConfig));
-```
-
-:::tip Safe for Production
-The `withRnHarness` function is a noop when you're not running Harness tests, so you don't need to worry about it affecting your app in production. It only kicks in when running tests!
 :::
 
 #### 3. Configure Jest
@@ -199,37 +178,13 @@ describe('My First Harness Test', () => {
 
 ## Available Testing APIs
 
-React Native Harness provides Jest-compatible APIs through `react-native-harness`:
+React Native Harness provides Jest-compatible APIs through `react-native-harness`.
 
-### Test Structure
+For a complete reference of available functions, see the API documentation:
 
-- `describe(name, fn)` - Group related tests
-- `it(name, fn)` or `test(name, fn)` - Define individual tests
-- `it.skip()` or `test.skip()` - Skip tests
-- `it.only()` or `test.only()` - Run only specific tests
-
-### Lifecycle Hooks
-
-- `beforeAll(fn)` - Run once before all tests
-- `afterAll(fn)` - Run once after all tests
-- `beforeEach(fn)` - Run before each test
-- `afterEach(fn)` - Run after each test
-
-### Assertions
-
-Create expectations using `expect(value)` with matchers:
-
-- `.toBe()` - Strict equality
-- `.toEqual()` - Deep equality
-- `.toBeTruthy()` - Truthy values
-- `.toBeFalsy()` - Falsy values
-- `.toContain()` - Array/string contains
-- `.toHaveLength()` - Length check
-- `.toMatch()` - Regex match
-- `.toBeInstanceOf()` - Instance type
-- `.toHaveProperty()` - Object property
-
-...and many more Jest-compatible matchers.
+- [**Defining Tests**](/docs/api/defining-tests) - `describe`, `it`, `test`, and lifecycle hooks (`beforeEach`, `afterAll`, etc.)
+- [**Expect**](/docs/api/expect) - Assertions and matchers (`expect`, `toBe`, `toEqual`, etc.)
+- [**Mocking & Spying**](/docs/api/mocking-and-spying) - `fn`, `spyOn`, and mock management
 
 ## Building Your App
 
@@ -257,7 +212,7 @@ Follow your framework's documentation to build and install the debug variant:
 
 ## Running Tests
 
-Now you're ready to run your tests! Use the `react-native-harness` command with the `--harnessRunner` flag to specify which platform to run on:
+Now you're ready to run your tests! Use the `react-native-harness` command with the `--harnessRunner` flag to specify which platform to run on. For detailed platform-specific execution details, see the [Android](/docs/platforms/android), [iOS](/docs/platforms/ios), or [Web](/docs/platforms/web) guides.
 
 <PackageManagerTabs command="react-native-harness --harnessRunner android" />
 

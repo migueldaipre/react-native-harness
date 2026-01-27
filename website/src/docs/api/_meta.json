@@ -23,5 +23,15 @@
     "type": "file",
     "name": "rendering-components",
     "label": "Rendering Components"
+  },
+  {
+    "type": "file",
+    "name": "test-environment",
+    "label": "Test Environment & Lifecycle"
+  },
+  {
+    "type": "file",
+    "name": "cli",
+    "label": "CLI Reference"
   }
 ]

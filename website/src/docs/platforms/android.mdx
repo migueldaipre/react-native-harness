@@ -1,0 +1,72 @@
+import { PackageManagerTabs } from '@theme';
+
+# Android
+
+React Native Harness allows you to run tests on both Android Emulators and physical Android devices.
+
+## Installation
+
+First, install the Android platform package:
+
+<PackageManagerTabs command="install --save-dev @react-native-harness/platform-android" />
+
+## Configuration
+
+Import the Android platform utilities in your `rn-harness.config.mjs`:
+
+```javascript
+import {
+  androidPlatform,
+  androidEmulator,
+  physicalAndroidDevice,
+} from '@react-native-harness/platform-android';
+
+const config = {
+  runners: [
+    // ...
+  ],
+};
+```
+
+### Emulators
+
+To run on an Android Emulator, use the `androidEmulator()` helper. You need to provide the AVD (Android Virtual Device) name.
+
+```javascript
+androidPlatform({
+  name: 'android',
+  device: androidEmulator('Pixel_8_API_35'),
+  bundleId: 'com.yourapp.debug',
+})
+```
+
+#### Finding Emulator Names
+You can list all available AVDs on your system using the `emulator` command:
+
+```bash
+emulator -list-avds
+```
+Output example:
+```
+Pixel_6_API_33
+Pixel_8_API_35
+```
+
+### Physical Devices
+
+To run on a connected physical Android device, use the `physicalAndroidDevice()` helper.
+
+```javascript
+androidPlatform({
+  name: 'android-device',
+  device: physicalAndroidDevice('Motorola', 'Moto G72'),
+  bundleId: 'com.yourapp.debug',
+})
+```
+
+The first argument is the manufacturer, and the second is the model name. These are used for reporting and logging purposes. Harness will automatically detect the connected device via ADB.
+
+## Requirements
+
+- **ADB**: The Android Debug Bridge (`adb`) must be installed and in your system PATH.
+- **Development Build**: You must have a debug build of your app installed on the device/emulator (`adb install ...`). Harness does not build your app; it injects the test bundle into the existing installed app.

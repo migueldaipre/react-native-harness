@@ -6,6 +6,11 @@
   },
   {
     "type": "dir",
+    "name": "platforms",
+    "label": "Platforms"
+  },
+  {
+    "type": "dir",
     "name": "api",
     "label": "API"
   },

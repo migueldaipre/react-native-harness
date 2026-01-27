@@ -1,0 +1,88 @@
+# CLI Reference
+
+The `react-native-harness` command is a powerful wrapper around the Jest CLI. It provides seamless integration with native environments while maintaining the familiar Jest developer experience.
+
+## Commands
+
+### `init`
+
+Runs the interactive setup wizard to configure React Native Harness in your project.
+
+```bash
+npx react-native-harness init
+```
+
+The wizard will help you:
+- Detect your project type (Expo or React Native CLI).
+- Install required platform packages.
+- Configure Android, iOS, or Web runners.
+- Generate configuration files (`rn-harness.config.mjs` and `jest.harness.config.mjs`).
+
+### `(default)`
+
+Runs tests using the Harness test runner.
+
+```bash
+npx react-native-harness [test-file-pattern] [options]
+```
+
+## Options
+
+### Harness Specific Flags
+
+| Flag | Description |
+| :--- | :--- |
+| `--harnessRunner <name>` | Specify which runner from your `rn-harness.config.mjs` to use. **Note:** Only one runner can be specified per command execution. |
+| `--config, -c <path>` | Path to your Harness Jest configuration (defaults to `jest.harness.config.mjs`). |
+
+### Running on Multiple Platforms
+
+Harness executes tests on a single runner at a time to ensure isolated and reliable reporting. To run tests on multiple platforms (e.g., both iOS and Android in CI), you must execute the command separately for each runner:
+
+```bash
+# Run Android tests
+npx react-native-harness --harnessRunner android
+
+# Run iOS tests
+npx react-native-harness --harnessRunner ios
+```
+
+### Supported Jest Flags
+
+React Native Harness supports the most commonly used Jest flags:
+
+- `--watch`: Watch files for changes and rerun tests related to changed files.
+- `--coverage`: Indicates that test coverage information should be collected and reported in the output.
+- `--testNamePattern, -t`: Run only tests with a name that matches the regex.
+- `--testPathPattern`: A regexp string that is matched against all tests paths before executing the test.
+- `--verbose`: Display individual test results with the test suite hierarchy.
+
+## Restrictions and Limitations
+
+To ensure stability and compatibility with real native devices, React Native Harness **disables** or **restricts** certain standard Jest CLI options.
+
+### Forced Serial Execution
+
+Harness executes tests **serially** (one at a time) on the target device to prevent native resource conflicts (like multiple tests trying to access the camera or filesystem simultaneously).
+
+The following Jest flags are **ignored or disabled**:
+- `--maxWorkers`
+- `--runInBand` (Implicitly always true)
+- `--maxConcurrency`
+- `--shard`
+
+### Restricted Configuration Overrides
+
+Harness manages the test environment, transformation, and module resolution internally to ensure tests can be bundled by Metro and run on-device.
+
+The following Jest configuration flags are **disabled**:
+- `--runner` / `--testRunner`
+- `--testEnvironment`
+- `--preset`
+- `--transform` / `--transformIgnorePatterns`
+- `--resolver`
+- `--globals`
+
+### Snapshot Management
+
+Snapshot testing for UI is handled via the separate `@react-native-harness/ui` package and the `toMatchImageSnapshot` matcher. Standard Jest snapshot flags like `--updateSnapshot` (`-u`) are currently not supported for native image snapshots.

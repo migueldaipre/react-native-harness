@@ -11,6 +11,11 @@
   },
   {
     "type": "file",
+    "name": "architecture",
+    "label": "Architecture"
+  },
+  {
+    "type": "file",
     "name": "quick-start",
     "label": "Quick Start"
   },

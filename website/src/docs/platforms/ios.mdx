@@ -1,0 +1,70 @@
+import { PackageManagerTabs } from '@theme';
+
+# iOS
+
+React Native Harness supports running tests on iOS Simulators and physical iOS devices.
+
+## Installation
+
+First, install the Apple platform package:
+
+<PackageManagerTabs command="install --save-dev @react-native-harness/platform-apple" />
+
+## Configuration
+
+Import the Apple platform utilities in your `rn-harness.config.mjs`:
+
+```javascript
+import {
+  applePlatform,
+  appleSimulator,
+  applePhysicalDevice,
+} from '@react-native-harness/platform-apple';
+
+const config = {
+  runners: [
+    // ...
+  ],
+};
+```
+
+### Simulators
+
+To run on an iOS Simulator, use the `appleSimulator()` helper. You **must** provide both the device name and the iOS runtime version.
+
+```javascript
+applePlatform({
+  name: 'ios',
+  device: appleSimulator('iPhone 16 Pro', '18.0'),
+  bundleId: 'com.yourapp',
+})
+```
+
+#### Finding Simulator Details
+You can list all available simulators using `xcrun`:
+
+```bash
+xcrun simctl list devices
+```
+
+:::info Why is the version required?
+Xcode often installs multiple runtime versions (e.g., iOS 17.0 and iOS 18.0). Since a simulator is uniquely identified by the combination of Device Type + Runtime, Harness needs both to target the correct simulator instance.
+:::
+
+### Physical Devices
+
+To run on a connected physical iOS device, use the `applePhysicalDevice()` helper.
+
+```javascript
+applePlatform({
+  name: 'ios-device',
+  device: applePhysicalDevice('iPhone (Your Name)'),
+  bundleId: 'com.yourapp',
+})
+```
+
+## Requirements
+
+- **Xcode**: Xcode must be installed on your system.
+- **xcrun**: Harness uses `xcrun simctl` for simulators and `xcrun devicectl` for physical devices.
+- **Development Build**: A debug build of your app must be installed on the simulator or device.
