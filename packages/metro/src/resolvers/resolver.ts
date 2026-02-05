@@ -55,7 +55,7 @@ export const createJestGlobalsResolver = (): HarnessResolver => {
     if (moduleName === '@jest/globals') {
       return {
         type: 'sourceFile',
-        filePath: require.resolve('./jest-globals-mock'),
+        filePath: require.resolve('../jest-globals-mock'),
       };
     }
 
