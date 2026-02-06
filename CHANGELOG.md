@@ -1,3 +1,19 @@
+## 1.0.0-alpha.25 (2026-02-06)
+
+### 🩹 Fixes
+
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Add support for resolving `tsconfig` path aliases in Metro. This helps apps that rely on TypeScript path mappings bundle correctly. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Support screenshots of elements larger than the viewport by capturing the full bounds of the element. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Pre-warm Metro bundles to reduce startup time for tests. This improves responsiveness across the supported platforms and Jest runner. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Support screenshots of elements larger than the viewport by capturing the full bounds of the element. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+
 ## 1.0.0-alpha.24 (2026-01-26)
 
 ### 🩹 Fixes
