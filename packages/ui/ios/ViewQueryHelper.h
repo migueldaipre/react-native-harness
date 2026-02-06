@@ -20,6 +20,7 @@ typedef NS_ENUM(NSInteger, ViewQueryType) {
 @property (nonatomic, assign) CGFloat y;
 @property (nonatomic, assign) CGFloat width;
 @property (nonatomic, assign) CGFloat height;
+@property (nonatomic, copy) NSString *nativeId;
 
 - (NSDictionary *)toDictionary;
 
@@ -58,6 +59,14 @@ typedef NS_ENUM(NSInteger, ViewQueryType) {
  * @return NSData containing PNG image data, or nil on failure.
  */
 + (nullable NSData *)captureScreenshotWithBounds:(CGRect)bounds;
+
+/**
+ * Captures a screenshot of a specific view, rendering its layer directly.
+ * This allows capturing content that might be off-screen or larger than the window.
+ * @param view The view to capture.
+ * @return NSData containing PNG image data, or nil on failure.
+ */
++ (nullable NSData *)captureScreenshotOfView:(UIView *)view;
 
 @end
 

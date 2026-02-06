@@ -1,19 +1,13 @@
-/**
- * Represents the position and dimensions of a view in screen coordinates (points/dp).
- */
-export interface ViewInfo {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import type { ViewInfo } from "./NativeHarnessUI.js";
+
+export type { ViewInfo, BoundingBox } from "./NativeHarnessUI.js";
 
 export interface HarnessUIModule {
   /**
-   * Simulates a native press at the specified screen coordinates.
+   * Simulates a native press on a view identified by nativeId, or at coordinates if nativeId is empty.
    * Returns a promise that resolves when the press action is complete.
    */
-  simulatePress(x: number, y: number): Promise<void>;
+  simulatePress(nativeId: string, x: number, y: number): Promise<void>;
 
   /**
    * Finds a view by its testID (accessibilityIdentifier on iOS, tag on Android).

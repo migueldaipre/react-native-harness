@@ -1,7 +1,9 @@
 package com.harnessui
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -9,7 +11,6 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.content.Context
 import android.widget.EditText
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -28,12 +29,13 @@ import java.util.concurrent.TimeUnit
  * UI helper implementation for HarnessUI.
  * Includes touch simulation and view querying capabilities.
  */
-class UIHelperImpl(private val context: ReactApplicationContext) {
-
+class UIHelperImpl(
+    private val context: ReactApplicationContext,
+) {
     companion object {
         private const val TAG = "HarnessUI"
-        private const val TAP_DURATION_MS = 50L  // Duration between touch down and up
-        private const val EVENT_PROCESSING_DELAY_MS = 10L  // Delay after touch up for React Native to process the event
+        private const val TAP_DURATION_MS = 50L // Duration between touch down and up
+        private const val EVENT_PROCESSING_DELAY_MS = 10L // Delay after touch up for React Native to process the event
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -42,21 +44,50 @@ class UIHelperImpl(private val context: ReactApplicationContext) {
     // Touch Simulation
     // =========================================================================
 
-    fun simulatePress(x: Double, y: Double, promise: Promise) {
-        Log.i(TAG, "simulatePress called with x:$x y:$y")
+    fun simulatePress(
+        nativeId: String,
+        x: Double,
+        y: Double,
+        promise: Promise,
+    ) {
+        Log.i(TAG, "simulatePress called with nativeId:$nativeId x:$x y:$y")
 
         UiThreadUtil.runOnUiThread {
-            val activity = context.currentActivity ?: run {
-                Log.w(TAG, "No current activity")
-                promise.resolve(null)
-                return@runOnUiThread
-            }
+            val activity =
+                context.currentActivity ?: run {
+                    Log.w(TAG, "No current activity")
+                    promise.resolve(null)
+                    return@runOnUiThread
+                }
             val root = activity.window.decorView
+            val density = root.resources.displayMetrics.density
+
+            var targetX = x
+            var targetY = y
+
+            // If nativeId is provided, try to find the view and get its current position
+            if (nativeId.isNotEmpty()) {
+                val targetView = ViewRegistry.get(nativeId)
+                if (targetView != null) {
+                    val location = IntArray(2)
+                    targetView.getLocationOnScreen(location)
+                    // Calculate center in DP
+                    val viewX = location[0] / density
+                    val viewY = location[1] / density
+                    val viewW = targetView.width / density
+                    val viewH = targetView.height / density
+
+                    targetX = (viewX + viewW / 2.0)
+                    targetY = (viewY + viewH / 2.0)
+                    Log.i(TAG, "Resolved view $nativeId to coordinates ($targetX, $targetY)")
+                } else {
+                    Log.w(TAG, "View with nativeId $nativeId not found or collected. Using provided coordinates.")
+                }
+            }
 
             // Convert DP to PX
-            val density = root.resources.displayMetrics.density
-            val pxX = (x * density).toFloat()
-            val pxY = (y * density).toFloat()
+            val pxX = (targetX * density).toFloat()
+            val pxY = (targetY * density).toFloat()
 
             val downTime = SystemClock.uptimeMillis()
 
@@ -115,7 +146,10 @@ class UIHelperImpl(private val context: ReactApplicationContext) {
      * Executes a query on the UI thread and returns the result.
      * Uses CountDownLatch to synchronize with the UI thread.
      */
-    private fun executeQuery(queryType: ViewQueryType, value: String): WritableMap? {
+    private fun executeQuery(
+        queryType: ViewQueryType,
+        value: String,
+    ): WritableMap? {
         var result: WritableMap? = null
 
         // If already on UI thread, execute directly
@@ -153,16 +187,20 @@ class UIHelperImpl(private val context: ReactApplicationContext) {
      * Executes a query for all matching views on the UI thread.
      * Uses CountDownLatch to synchronize with the UI thread.
      */
-    private fun executeQueryAll(queryType: ViewQueryType, value: String): WritableArray {
+    private fun executeQueryAll(
+        queryType: ViewQueryType,
+        value: String,
+    ): WritableArray {
         var result: WritableArray = Arguments.createArray()
 
         // If already on UI thread, execute directly
         if (UiThreadUtil.isOnUiThread()) {
             val activity = context.currentActivity ?: return result
             val queryResults = ViewQueryHelper.queryAll(activity, queryType, value)
-            result = Arguments.createArray().apply {
-                queryResults.forEach { pushMap(it.toWritableMap()) }
-            }
+            result =
+                Arguments.createArray().apply {
+                    queryResults.forEach { pushMap(it.toWritableMap()) }
+                }
         } else {
             // Execute on UI thread and wait for result
             val latch = CountDownLatch(1)
@@ -172,9 +210,10 @@ class UIHelperImpl(private val context: ReactApplicationContext) {
                     val activity = context.currentActivity
                     if (activity != null) {
                         val queryResults = ViewQueryHelper.queryAll(activity, queryType, value)
-                        result = Arguments.createArray().apply {
-                            queryResults.forEach { pushMap(it.toWritableMap()) }
-                        }
+                        result =
+                            Arguments.createArray().apply {
+                                queryResults.forEach { pushMap(it.toWritableMap()) }
+                            }
                     }
                 } finally {
                     latch.countDown()
@@ -197,20 +236,68 @@ class UIHelperImpl(private val context: ReactApplicationContext) {
     // Screenshot Capture
     // =========================================================================
 
-    fun captureScreenshot(bounds: ReadableMap?, promise: Promise) {
+    fun captureScreenshot(
+        bounds: ReadableMap?,
+        promise: Promise,
+    ) {
         Log.i(TAG, "captureScreenshot called")
 
         UiThreadUtil.runOnUiThread {
-            val activity = context.currentActivity ?: run {
-                Log.w(TAG, "No current activity")
-                promise.resolve(null)
-                return@runOnUiThread
-            }
+            val activity =
+                context.currentActivity ?: run {
+                    Log.w(TAG, "No current activity")
+                    promise.resolve(null)
+                    return@runOnUiThread
+                }
 
             val root = activity.window.decorView.rootView
             val density = root.resources.displayMetrics.density
 
             try {
+                // Check if we have a specific view to capture via nativeId
+                val nativeId = if (bounds != null && bounds.hasKey("nativeId")) bounds.getString("nativeId") else null
+
+                if (!nativeId.isNullOrEmpty()) {
+                    val targetView = ViewRegistry.get(nativeId)
+                    if (targetView != null) {
+                        val width = targetView.width
+                        val height = targetView.height
+
+                        if (width > 0 && height > 0) {
+                            val location = IntArray(2)
+                            targetView.getLocationOnScreen(location)
+                            val viewRect = Rect(location[0], location[1], location[0] + width, location[1] + height)
+                            val rootRect = Rect(0, 0, root.width, root.height)
+
+                            val isFullyOnScreen = rootRect.contains(viewRect)
+                            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                            val canvas = Canvas(bitmap)
+
+                            if (isFullyOnScreen) {
+                                Log.i(TAG, "View $nativeId is fully on screen. Using screen-based screenshotting.")
+                                // Translate canvas to capture the view from the root view hierarchy
+                                canvas.translate(-location[0].toFloat(), -location[1].toFloat())
+                                root.draw(canvas)
+                            } else {
+                                Log.i(TAG, "View $nativeId is partially/fully off screen. Using direct view render.")
+                                // Draw the specific view directly
+                                targetView.draw(canvas)
+                            }
+
+                            val outputStream = ByteArrayOutputStream()
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                            val pngBytes = outputStream.toByteArray()
+                            bitmap.recycle()
+
+                            val base64String = android.util.Base64.encodeToString(pngBytes, android.util.Base64.NO_WRAP)
+                            promise.resolve(base64String)
+                            return@runOnUiThread
+                        }
+                    } else {
+                        Log.w(TAG, "View with nativeId $nativeId not found for screenshot, falling back to window screenshot")
+                    }
+                }
+
                 // Determine capture dimensions
                 val captureX: Int
                 val captureY: Int
@@ -268,15 +355,19 @@ class UIHelperImpl(private val context: ReactApplicationContext) {
     // Text Input
     // =========================================================================
 
-    fun typeChar(character: String, promise: Promise) {
+    fun typeChar(
+        character: String,
+        promise: Promise,
+    ) {
         Log.i(TAG, "typeChar called with: $character")
 
         UiThreadUtil.runOnUiThread {
-            val activity = context.currentActivity ?: run {
-                Log.w(TAG, "No current activity")
-                promise.resolve(null)
-                return@runOnUiThread
-            }
+            val activity =
+                context.currentActivity ?: run {
+                    Log.w(TAG, "No current activity")
+                    promise.resolve(null)
+                    return@runOnUiThread
+                }
 
             val focused = activity.currentFocus
             if (focused is EditText) {
@@ -296,16 +387,20 @@ class UIHelperImpl(private val context: ReactApplicationContext) {
         }
     }
 
-    fun blur(options: ReadableMap, promise: Promise) {
+    fun blur(
+        options: ReadableMap,
+        promise: Promise,
+    ) {
         val submitEditing = options.getBoolean("submitEditing")
         Log.i(TAG, "blur called, submitEditing: $submitEditing")
 
         UiThreadUtil.runOnUiThread {
-            val activity = context.currentActivity ?: run {
-                Log.w(TAG, "No current activity")
-                promise.resolve(null)
-                return@runOnUiThread
-            }
+            val activity =
+                context.currentActivity ?: run {
+                    Log.w(TAG, "No current activity")
+                    promise.resolve(null)
+                    return@runOnUiThread
+                }
 
             val focused = activity.currentFocus
 

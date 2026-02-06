@@ -1,4 +1,5 @@
 #import "ViewQueryHelper.h"
+#import "ViewRegistry.h"
 
 // =============================================================================
 // ViewQueryResult Implementation
@@ -11,7 +12,8 @@
         @"x": @(self.x),
         @"y": @(self.y),
         @"width": @(self.width),
-        @"height": @(self.height)
+        @"height": @(self.height),
+        @"nativeId": self.nativeId ?: @""
     };
 }
 
@@ -119,6 +121,7 @@
     result.y = frameInWindow.origin.y;
     result.width = frameInWindow.size.width;
     result.height = frameInWindow.size.height;
+    result.nativeId = [ViewRegistry registerView:view];
     return result;
 }
 
@@ -181,6 +184,26 @@
     }];
 
     // Convert to PNG
+    return UIImagePNGRepresentation(image);
+}
+
++ (nullable NSData *)captureScreenshotOfView:(UIView *)view {
+    if (!view) {
+        return nil;
+    }
+
+    // Use UIGraphicsImageRenderer to render the view's layer
+    UIGraphicsImageRendererFormat *format = [[UIGraphicsImageRendererFormat alloc] init];
+    format.scale = [UIScreen mainScreen].scale;
+    format.opaque = NO; // Allow transparency if the view has it
+
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:view.bounds.size format:format];
+
+    UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        // Render the view's layer directly into the context
+        [view.layer renderInContext:context.CGContext];
+    }];
+
     return UIImagePNGRepresentation(image);
 }
 

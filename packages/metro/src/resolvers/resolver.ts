@@ -63,6 +63,33 @@ export const createJestGlobalsResolver = (): HarnessResolver => {
   };
 };
 
+export const createJsxRuntimeResolver = (): HarnessResolver => {
+  const resolvedJsxRuntimePath = require.resolve(
+    '@react-native-harness/runtime/jsx-runtime'
+  );
+  const resolvedJsxDevRuntimePath = require.resolve(
+    '@react-native-harness/runtime/jsx-dev-runtime'
+  );
+
+  return (_context, moduleName, _platform) => {
+    if (moduleName === '@react-native-harness/runtime/jsx-runtime') {
+      return {
+        type: 'sourceFile',
+        filePath: resolvedJsxRuntimePath,
+      };
+    }
+
+    if (moduleName === '@react-native-harness/runtime/jsx-dev-runtime') {
+      return {
+        type: 'sourceFile',
+        filePath: resolvedJsxDevRuntimePath,
+      };
+    }
+
+    return null;
+  };
+};
+
 export const getHarnessResolver = (
   metroConfig: MetroConfig,
   harnessConfig: HarnessConfig
@@ -71,6 +98,7 @@ export const getHarnessResolver = (
   const resolvers: HarnessResolver[] = [
     createHarnessEntryPointResolver(harnessConfig),
     createJestGlobalsResolver(),
+    createJsxRuntimeResolver(),
     createTsConfigResolver(process.cwd()),
     userResolver,
   ].filter((resolver): resolver is HarnessResolver => !!resolver);

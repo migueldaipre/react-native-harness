@@ -1,5 +1,6 @@
 #import "HarnessUI.h"
 #import "ViewQueryHelper.h"
+#import "ViewRegistry.h"
 #import <QuartzCore/QuartzCore.h>
 #import <React/RCTBridgeModule.h>
 #import <React/RCTLog.h>
@@ -231,16 +232,33 @@ static NSTimeInterval _lastTapTime = 0;
   [self executeTapAtPoint:point retryCount:0 completion:completion];
 }
 
-- (void)simulatePress:(double)x
-                  y:(double)y
-            resolve:(RCTPromiseResolveBlock)resolve
-             reject:(RCTPromiseRejectBlock)reject {
-  RCTLogInfo(@"[HarnessUI] simulatePress called with x:%.2f y:%.2f", x, y);
+- (void)simulatePress:(NSString *)nativeId
+                    x:(double)x
+                    y:(double)y
+              resolve:(RCTPromiseResolveBlock)resolve
+               reject:(RCTPromiseRejectBlock)reject {
+  RCTLogInfo(@"[HarnessUI] simulatePress called with nativeId:%@ x:%.2f y:%.2f", nativeId, x, y);
 
   dispatch_async(dispatch_get_main_queue(), ^{
     NSTimeInterval now = CACurrentMediaTime();
     NSTimeInterval timeSinceLastTap = now - _lastTapTime;
     CGPoint point = CGPointMake(x, y);
+
+    if (nativeId && nativeId.length > 0) {
+        UIView *view = [ViewRegistry getView:nativeId];
+        if (view) {
+             UIWindow *window = [self getActiveWindow]; // Or view.window? view.window is safer if attached.
+             if (!window) window = view.window;
+             
+             if (window) {
+                CGRect frameInWindow = [view convertRect:view.bounds toView:window];
+                point = CGPointMake(CGRectGetMidX(frameInWindow), CGRectGetMidY(frameInWindow));
+                RCTLogInfo(@"[HarnessUI] Resolved view %@ to point (%.2f, %.2f)", nativeId, point.x, point.y);
+             }
+        } else {
+             RCTLogWarn(@"[HarnessUI] View with nativeId %@ not found or collected. Using provided coordinates.", nativeId);
+        }
+    }
 
     // Completion block that actually resolves the promise
     void (^completionBlock)(void) = ^{
@@ -402,23 +420,55 @@ static NSTimeInterval _lastTapTime = 0;
   RCTLogInfo(@"[HarnessUI] captureScreenshot called");
 
   CGRect captureRect = CGRectNull;
+  NSString *nativeId = nil;
 
   if (bounds) {
+      if (bounds->nativeId().length > 0) {
+          nativeId = bounds->nativeId();
+      }
+    
     double width = bounds->width();
     double height = bounds->height();
 
     if (width > 0 && height > 0) {
       captureRect = CGRectMake(bounds->x(), bounds->y(), width, height);
-      RCTLogInfo(@"[HarnessUI] Capturing region: x=%.2f y=%.2f w=%.2f h=%.2f",
+      RCTLogInfo(@"[HarnessUI] Capturing region: x=%.2f y=%.2f w=%.2f h=%.2f nativeId=%@",
                  captureRect.origin.x, captureRect.origin.y,
-                 captureRect.size.width, captureRect.size.height);
+                 captureRect.size.width, captureRect.size.height, nativeId);
     }
   } else {
     RCTLogInfo(@"[HarnessUI] Capturing full window");
   }
 
   dispatch_async(dispatch_get_main_queue(), ^{
-    NSData *pngData = [ViewQueryHelper captureScreenshotWithBounds:captureRect];
+    NSData *pngData = nil;
+    
+    if (nativeId) {
+        UIView *targetView = [ViewRegistry getView:nativeId];
+        if (targetView) {
+             UIWindow *window = [self getActiveWindow];
+             if (window) {
+                 CGRect frameInWindow = [targetView convertRect:targetView.bounds toView:window];
+                 BOOL isFullyOnScreen = CGRectContainsRect(window.bounds, frameInWindow);
+                 
+                 if (isFullyOnScreen) {
+                     RCTLogInfo(@"[HarnessUI] View %@ is fully on screen. Using screen-based screenshotting.", nativeId);
+                     pngData = [ViewQueryHelper captureScreenshotWithBounds:frameInWindow];
+                 } else {
+                     RCTLogInfo(@"[HarnessUI] View %@ is partially/fully off screen. Using direct view render.", nativeId);
+                     pngData = [ViewQueryHelper captureScreenshotOfView:targetView];
+                 }
+             } else {
+                 RCTLogWarn(@"[HarnessUI] No active window found for nativeId: %@. Using direct view render.", nativeId);
+                 pngData = [ViewQueryHelper captureScreenshotOfView:targetView];
+             }
+        } else {
+             RCTLogWarn(@"[HarnessUI] View with nativeId %@ not found. Falling back to window bounds capture.", nativeId);
+             pngData = [ViewQueryHelper captureScreenshotWithBounds:captureRect];
+        }
+    } else {
+        pngData = [ViewQueryHelper captureScreenshotWithBounds:captureRect];
+    }
 
     if (pngData) {
       // Return Base64 string for efficiency
