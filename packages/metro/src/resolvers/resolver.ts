@@ -67,10 +67,12 @@ export const getHarnessResolver = (
   metroConfig: MetroConfig,
   harnessConfig: HarnessConfig
 ): MetroResolver => {
+  const userResolver = metroConfig.resolver?.resolveRequest;
   const resolvers: HarnessResolver[] = [
     createHarnessEntryPointResolver(harnessConfig),
     createJestGlobalsResolver(),
     createTsConfigResolver(process.cwd()),
+    userResolver,
   ].filter((resolver): resolver is HarnessResolver => !!resolver);
 
   return createHarnessResolver(resolvers);
