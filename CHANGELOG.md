@@ -1,3 +1,15 @@
+# 1.0.0 (2026-03-11)
+
+### 🩹 Fixes
+
+- Add a new host option to rn-harness.config for Metro bind host, replacing HARNESS_METRO_BIND_HOST. ([#70](https://github.com/callstackincubator/react-native-harness/pull/70))
+- Rewrites the implementation of the entry point resolver so it no longer mistakenly hijacks relative imports that originate from third-party packages instead of the root directory. ([#68](https://github.com/callstackincubator/react-native-harness/pull/68))
+
+### ❤️ Thank You
+
+- Hanno J. Gödecke
+- Szymon Chmal
+
 ## 1.0.0-alpha.25 (2026-02-06)
 
 ### 🩹 Fixes
