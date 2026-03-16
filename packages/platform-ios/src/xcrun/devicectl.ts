@@ -1,3 +1,4 @@
+import { type AppleAppLaunchOptions } from '@react-native-harness/platforms';
 import { spawn } from '@react-native-harness/tools';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -87,15 +88,27 @@ export const isAppInstalled = async (
 
 export const startApp = async (
   identifier: string,
-  bundleId: string
+  bundleId: string,
+  options?: AppleAppLaunchOptions
 ): Promise<void> => {
-  await devicectl('device', [
-    'process',
-    'launch',
-    '--device',
-    identifier,
-    bundleId,
-  ]);
+  await devicectl('device', getDeviceCtlLaunchArgs(identifier, bundleId, options));
+};
+
+export const getDeviceCtlLaunchArgs = (
+  identifier: string,
+  bundleId: string,
+  options?: AppleAppLaunchOptions
+): string[] => {
+  const args = ['process', 'launch', '--device', identifier];
+  const environment = options?.environment;
+
+  if (environment && Object.keys(environment).length > 0) {
+    args.push('--environment-variables', JSON.stringify(environment));
+  }
+
+  args.push(bundleId, ...(options?.arguments ?? []));
+
+  return args;
 };
 
 export type AppleProcessInfo = {
@@ -143,12 +156,17 @@ export const stopApp = async (
   ]);
 };
 
-export const getDeviceId = async (name: string): Promise<string | null> => {
+export const getDevice = async (
+  name: string
+): Promise<AppleDeviceInfo | null> => {
   const devices = await listDevices();
-  const device = devices.find(
-    (device) => device.deviceProperties.name === name
+  return (
+    devices.find((device) => device.deviceProperties.name === name) ?? null
   );
+};
 
+export const getDeviceId = async (name: string): Promise<string | null> => {
+  const device = await getDevice(name);
   return device?.identifier ?? null;
 };
 

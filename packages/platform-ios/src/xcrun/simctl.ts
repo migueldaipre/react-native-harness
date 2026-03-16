@@ -1,20 +1,145 @@
-import { spawn, spawnAndForget } from '@react-native-harness/tools';
+import {
+  type AppleAppLaunchOptions,
+  type CrashArtifactWriter,
+} from '@react-native-harness/platforms';
+import { logger, spawn, spawnAndForget } from '@react-native-harness/tools';
+import fs from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { iosCrashParser } from '../crash-parser.js';
 
-const plistToJson = async (plistOutput: string): Promise<any> => {
+const plistToJson = async (
+  plistOutput: string
+): Promise<Record<string, unknown>> => {
   const { stdout: jsonOutput } = await spawn(
     'plutil',
     ['-convert', 'json', '-o', '-', '-'],
     { stdin: { string: plistOutput } }
   );
-  return JSON.parse(jsonOutput);
+  return JSON.parse(jsonOutput) as Record<string, unknown>;
 };
 
 export type AppleAppInfo = {
   Bundle: string;
   CFBundleIdentifier: string;
+  CFBundleExecutable: string;
   CFBundleName: string;
   CFBundleDisplayName: string;
   Path: string;
+};
+
+export type AppleSimulatorCrashReport = {
+  artifactType: 'ios-crash-report';
+  artifactPath: string;
+  occurredAt: number;
+  summary?: string;
+  rawLines: string[];
+  processName?: string;
+  pid?: number;
+  signal?: string;
+  exceptionType?: string;
+  stackTrace?: string[];
+};
+
+const getDiagnosticReportsDir = () =>
+  join(homedir(), 'Library', 'Logs', 'DiagnosticReports');
+
+export const collectCrashReports = async ({
+  udid,
+  processNames,
+  crashArtifactWriter,
+  minOccurredAt,
+}: {
+  udid: string;
+  /** Kept for API compatibility; no longer used for content-based filtering. */
+  bundleId: string;
+  processNames: string[];
+  crashArtifactWriter?: CrashArtifactWriter;
+  minOccurredAt?: number;
+}): Promise<AppleSimulatorCrashReport[]> => {
+  const diagnosticReportsDir = getDiagnosticReportsDir();
+
+  logger.debug('[simctl] collectCrashReports', { udid, processNames, minOccurredAt, diagnosticReportsDir });
+
+  if (!fs.existsSync(diagnosticReportsDir)) {
+    logger.debug('[simctl] DiagnosticReports directory does not exist, skipping');
+    return [];
+  }
+
+  const allEntries = fs.readdirSync(diagnosticReportsDir);
+  const ipsEntries = allEntries.filter((entry) => entry.endsWith('.ips'));
+  logger.debug(`[simctl] Found ${allEntries.length} total entries, ${ipsEntries.length} .ips files in DiagnosticReports`);
+
+  // Crash files are named {ProcessName}-YYYY-MM-DD-HHMMSS.ips, so filter by filename prefix.
+  const matchingEntries = ipsEntries.filter((entry) =>
+    processNames.some((name) => entry.startsWith(`${name}-`))
+  );
+  logger.debug(`[simctl] ${matchingEntries.length} file(s) match process names by filename prefix`);
+
+  type CrashCandidate = AppleSimulatorCrashReport & { contents: string };
+  const candidates: CrashCandidate[] = [];
+
+  for (const entry of matchingEntries) {
+    const path = join(diagnosticReportsDir, entry);
+    const contents = fs.readFileSync(path, 'utf8');
+    const report = iosCrashParser.parse({ path, contents });
+
+    if (!report) {
+      logger.debug(`[simctl] Skipping ${entry}: failed to parse crash report`);
+      continue;
+    }
+
+    if (minOccurredAt !== undefined && report.occurredAt < minOccurredAt) {
+      logger.debug(`[simctl] Skipping ${entry}: occurredAt ${report.occurredAt} is older than minOccurredAt ${minOccurredAt}`);
+      continue;
+    }
+
+    logger.debug(`[simctl] Candidate crash report: ${entry}`, { occurredAt: report.occurredAt, processName: report.processName, pid: report.pid });
+    candidates.push({
+      ...report,
+      rawLines: report.rawLines ?? [],
+      artifactPath: path,
+      artifactType: 'ios-crash-report',
+      contents,
+    });
+  }
+
+  if (candidates.length === 0) {
+    logger.debug('[simctl] No candidates after filtering');
+    return [];
+  }
+
+  // Walk from latest to oldest and return the first report that belongs to this simulator.
+  const sorted = candidates.sort((a, b) => b.occurredAt - a.occurredAt);
+
+  for (const candidate of sorted) {
+    if (!candidate.contents.includes(udid)) {
+      logger.debug(`[simctl] Skipping candidate (occurredAt=${candidate.occurredAt}): does not contain udid ${udid}`);
+      continue;
+    }
+
+    logger.debug(`[simctl] Matched crash report for simulator`, { occurredAt: candidate.occurredAt, processName: candidate.processName, pid: candidate.pid });
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { contents: _contents, ...report } = candidate;
+
+    if (!crashArtifactWriter) {
+      return [report];
+    }
+
+    const artifactPath = crashArtifactWriter.persistArtifact({
+      artifactKind: 'ios-crash-report',
+      source: {
+        kind: 'file',
+        path: report.artifactPath,
+      },
+    });
+    logger.debug(`[simctl] Persisted crash artifact to: ${artifactPath}`);
+    return [{ ...report, artifactPath }];
+  }
+
+  logger.debug('[simctl] No candidates matched the simulator udid');
+  return [];
 };
 
 export const getAppInfo = async (
@@ -37,7 +162,7 @@ export const getAppInfo = async (
     return null;
   }
 
-  return json;
+  return json as AppleAppInfo;
 };
 
 export const isAppInstalled = async (
@@ -94,11 +219,27 @@ export const getSimulatorStatus = async (
   return simulator.state;
 };
 
+export const getSimctlChildEnvironment = (
+  options?: AppleAppLaunchOptions
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(options?.environment ?? {}).map(([key, value]) => [
+      `SIMCTL_CHILD_${key}`,
+      value,
+    ])
+  );
+
 export const startApp = async (
   udid: string,
-  bundleId: string
+  bundleId: string,
+  options?: AppleAppLaunchOptions
 ): Promise<void> => {
-  await spawn('xcrun', ['simctl', 'launch', udid, bundleId]);
+  const environment = getSimctlChildEnvironment(options);
+  const argumentsList = options?.arguments ?? [];
+
+  await spawn('xcrun', ['simctl', 'launch', udid, bundleId, ...argumentsList], {
+    env: environment,
+  });
 };
 
 export const stopApp = async (

@@ -94,6 +94,7 @@ export const getMetroInstance = async (
     dispose: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
+        server.closeAllConnections();
       }),
   };
 };
