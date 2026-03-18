@@ -30,6 +30,7 @@ jobs:
     if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android')) }}
     env:
       HARNESS_DEBUG: true
+      DEBUG: 'Metro:*'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,10 +60,10 @@ jobs:
       - name: Metro cache
         uses: actions/cache@v4
         with:
-          path: apps/playground/node_modules/.cache/rn-harness/metro-cache
-          key: metro-cache-${{ hashFiles('apps/playground/node_modules/.cache/rn-harness/metro-cache/**/*') }}
+          path: apps/playground/.harness/metro-cache
+          key: ${{ runner.os }}-metro-cache-${{ hashFiles('**/bun.lock', '**/bun.lockb', '**/package-lock.json', '**/npm-shrinkwrap.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/metro.config.js', '**/metro.config.cjs', '**/metro.config.mjs', '**/metro.config.ts', '**/babel.config.js', '**/babel.config.cjs', '**/babel.config.mjs', '**/babel.config.ts', '**/babel.config.json') }}
           restore-keys: |
-            metro-cache
+            ${{ runner.os }}-metro-cache-
 
       - name: Install dependencies
         run: |
@@ -110,6 +111,8 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 30
     if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios')) }}
+    env:
+      DEBUG: 'Metro:*'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -131,10 +134,10 @@ jobs:
       - name: Metro cache
         uses: actions/cache@v4
         with:
-          path: apps/playground/node_modules/.cache/rn-harness/metro-cache
-          key: metro-cache-${{ hashFiles('apps/playground/node_modules/.cache/rn-harness/metro-cache/**/*') }}
+          path: apps/playground/.harness/metro-cache
+          key: ${{ runner.os }}-metro-cache-${{ hashFiles('**/bun.lock', '**/bun.lockb', '**/package-lock.json', '**/npm-shrinkwrap.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/metro.config.js', '**/metro.config.cjs', '**/metro.config.mjs', '**/metro.config.ts', '**/babel.config.js', '**/babel.config.cjs', '**/babel.config.mjs', '**/babel.config.ts', '**/babel.config.json') }}
           restore-keys: |
-            metro-cache
+            ${{ runner.os }}-metro-cache-
 
       - name: Install Watchman
         run: brew install watchman
@@ -199,6 +202,7 @@ jobs:
     if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'web')) }}
     env:
       HARNESS_DEBUG: true
+      DEBUG: 'Metro:*'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -220,10 +224,10 @@ jobs:
       - name: Metro cache
         uses: actions/cache@v4
         with:
-          path: apps/playground/node_modules/.cache/rn-harness/metro-cache
-          key: metro-cache-${{ hashFiles('apps/playground/node_modules/.cache/rn-harness/metro-cache/**/*') }}
+          path: apps/playground/.harness/metro-cache
+          key: ${{ runner.os }}-metro-cache-${{ hashFiles('**/bun.lock', '**/bun.lockb', '**/package-lock.json', '**/npm-shrinkwrap.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/metro.config.js', '**/metro.config.cjs', '**/metro.config.mjs', '**/metro.config.ts', '**/babel.config.js', '**/babel.config.cjs', '**/babel.config.mjs', '**/babel.config.ts', '**/babel.config.json') }}
           restore-keys: |
-            metro-cache
+            ${{ runner.os }}-metro-cache-
 
       - name: Install dependencies
         run: |
@@ -246,6 +250,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android') }}
     env:
       HARNESS_DEBUG: true
+      DEBUG: 'Metro:*'
 
     steps:
       - name: Checkout code
@@ -276,10 +281,10 @@ jobs:
       - name: Metro cache
         uses: actions/cache@v4
         with:
-          path: apps/playground/node_modules/.cache/rn-harness/metro-cache
-          key: metro-cache-${{ hashFiles('apps/playground/node_modules/.cache/rn-harness/metro-cache/**/*') }}
+          path: apps/playground/.harness/metro-cache
+          key: ${{ runner.os }}-metro-cache-${{ hashFiles('**/bun.lock', '**/bun.lockb', '**/package-lock.json', '**/npm-shrinkwrap.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/metro.config.js', '**/metro.config.cjs', '**/metro.config.mjs', '**/metro.config.ts', '**/babel.config.js', '**/babel.config.cjs', '**/babel.config.mjs', '**/babel.config.ts', '**/babel.config.json') }}
           restore-keys: |
-            metro-cache
+            ${{ runner.os }}-metro-cache-
 
       - name: Install dependencies
         run: |
@@ -351,6 +356,8 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 30
     if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios') }}
+    env:
+      DEBUG: 'Metro:*'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -372,10 +379,10 @@ jobs:
       - name: Metro cache
         uses: actions/cache@v4
         with:
-          path: apps/playground/node_modules/.cache/rn-harness/metro-cache
-          key: metro-cache-${{ hashFiles('apps/playground/node_modules/.cache/rn-harness/metro-cache/**/*') }}
+          path: apps/playground/.harness/metro-cache
+          key: ${{ runner.os }}-metro-cache-${{ hashFiles('**/bun.lock', '**/bun.lockb', '**/package-lock.json', '**/npm-shrinkwrap.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/metro.config.js', '**/metro.config.cjs', '**/metro.config.mjs', '**/metro.config.ts', '**/babel.config.js', '**/babel.config.cjs', '**/babel.config.mjs', '**/babel.config.ts', '**/babel.config.json') }}
           restore-keys: |
-            metro-cache
+            ${{ runner.os }}-metro-cache-
 
       - name: Install Watchman
         run: brew install watchman
