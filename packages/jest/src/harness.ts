@@ -178,6 +178,7 @@ const getHarnessInternal = async (
     await prewarmMetroBundle({
       projectRoot,
       entryPoint: config.entryPoint,
+      port: config.metroPort,
       platform: platform.platformId,
       dev: true,
       minify: false,

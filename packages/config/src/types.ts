@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const DEFAULT_METRO_PORT = 8081;
+
 const RunnerSchema = z.object({
   name: z
     .string()
@@ -22,6 +24,13 @@ export const ConfigSchema = z
     runners: z.array(RunnerSchema).min(1, 'At least one runner is required'),
     defaultRunner: z.string().optional(),
     host: z.string().min(1, 'Host is required').optional(),
+    metroPort: z
+      .number()
+      .int('Metro port must be an integer')
+      .min(1, 'Metro port must be at least 1')
+      .max(65535, 'Metro port must be at most 65535')
+      .optional()
+      .default(DEFAULT_METRO_PORT),
     webSocketPort: z.number().optional().default(3001),
     bridgeTimeout: z
       .number()
