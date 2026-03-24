@@ -14,11 +14,11 @@ import {
 } from '@react-native-harness/platforms';
 import {
   getMetroInstance,
+  isMetroCacheReusable,
   prewarmMetroBundle,
   type Reporter,
   type ReportableEvent,
 } from '@react-native-harness/bundler-metro';
-import { isMetroCacheReusable } from '@react-native-harness/metro';
 import { createCrashArtifactWriter } from '@react-native-harness/tools';
 import {
   InitializationTimeoutError,

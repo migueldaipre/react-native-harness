@@ -1,4 +1,3 @@
-import { withRnHarness } from '@react-native-harness/metro';
 import { logger } from '@react-native-harness/tools';
 import type { Server as HttpServer } from 'node:http';
 import type { Server as HttpsServer } from 'node:https';
@@ -14,6 +13,7 @@ import {
 } from './reporter.js';
 import { getExpoMiddleware } from './middlewares/expo-middleware.js';
 import { getStatusMiddleware } from './middlewares/status-middleware.js';
+import { withRnHarness } from './withRnHarness.js';
 
 const waitForBundler = async (
   reporter: Reporter,

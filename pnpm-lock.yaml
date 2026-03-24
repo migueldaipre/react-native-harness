@@ -245,15 +245,21 @@ importers:
 
   packages/bundler-metro:
     dependencies:
+      '@react-native-harness/babel-preset':
+        specifier: workspace:*
+        version: link:../babel-preset
       '@react-native-harness/config':
         specifier: workspace:*
         version: link:../config
-      '@react-native-harness/metro':
+      '@react-native-harness/runtime':
         specifier: workspace:*
-        version: link:../metro
+        version: link:../runtime
       '@react-native-harness/tools':
         specifier: workspace:*
         version: link:../tools
+      '@react-native/metro-config':
+        specifier: '*'
+        version: 0.82.1
       connect:
         specifier: ^3.7.0
         version: 3.7.0
@@ -270,7 +276,13 @@ importers:
       metro:
         specifier: '*'
         version: 0.83.3
+      metro-cache:
+        specifier: '*'
+        version: 0.83.3
       metro-config:
+        specifier: '*'
+        version: 0.83.3
+      metro-resolver:
         specifier: '*'
         version: 0.83.3
 
@@ -341,9 +353,6 @@ importers:
       '@react-native-harness/config':
         specifier: workspace:*
         version: link:../config
-      '@react-native-harness/metro':
-        specifier: workspace:*
-        version: link:../metro
       '@react-native-harness/platforms':
         specifier: workspace:*
         version: link:../platforms
@@ -378,22 +387,10 @@ importers:
 
   packages/metro:
     dependencies:
-      '@react-native-harness/babel-preset':
-        specifier: workspace:*
-        version: link:../babel-preset
-      '@react-native-harness/config':
-        specifier: workspace:*
-        version: link:../config
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
     devDependencies:
-      '@react-native-harness/runtime':
-        specifier: workspace:*
-        version: link:../runtime
-      '@types/babel__core':
-        specifier: ^7.20.5
-        version: 7.20.5
       metro:
         specifier: '*'
         version: 0.83.3
