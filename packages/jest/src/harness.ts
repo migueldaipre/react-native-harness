@@ -22,7 +22,6 @@ import {
   type MetroInstance,
   type ReportableEvent,
 } from '@react-native-harness/bundler-metro';
-import { createCrashArtifactWriter } from '@react-native-harness/tools';
 import {
   createHarnessPluginManager,
   type FlatHarnessHookContexts,
@@ -31,9 +30,8 @@ import {
   type HarnessRunStatus,
   type HarnessRunSummary,
 } from '@react-native-harness/plugins';
-import {
-  InitializationTimeoutError,
-} from './errors.js';
+import { logger, createCrashArtifactWriter } from '@react-native-harness/tools';
+import { InitializationTimeoutError } from './errors.js';
 import { Config as HarnessConfig } from '@react-native-harness/config';
 import {
   createCrashSupervisor,
@@ -42,6 +40,8 @@ import {
 import { createClientLogListener } from './client-log-handler.js';
 import path from 'node:path';
 import { logMetroCacheReused } from './logs.js';
+
+const harnessLogger = logger.child('runtime');
 
 export type HarnessRunTestsOptions = Exclude<TestExecutionOptions, 'platform'>;
 
@@ -132,6 +132,9 @@ export const waitForAppReady = async (options: {
   } = options;
   const signal = options.signal ?? new AbortController().signal;
 
+  const logWait = (message: string, ...args: Array<unknown>) => {
+    harnessLogger.debug(`waitForAppReady: ${message}`, ...args);
+  };
   return await waitForMetroBackedAppReady({
     metro: metroInstance,
     platformId,
@@ -140,14 +143,18 @@ export const waitForAppReady = async (options: {
     maxAppRestarts,
     signal,
     startAttempt: async () => {
+      logWait('launching app for %s', testFilePath);
       await launchApp();
+      logWait('launch request completed, waiting for bridge ready');
     },
     waitForReady: async (signal) => {
+      logWait('waiting for runtime ready');
       return await Promise.race([
         new Promise<void>((resolve) => {
           const onReady = () => {
             cleanup();
             crashSupervisor.markReady();
+            logWait('runtime ready received');
             resolve();
           };
           const onAbort = () => {
@@ -166,6 +173,7 @@ export const waitForAppReady = async (options: {
     },
     waitForCrash: async (signal) => {
       try {
+        logWait('waiting for crash or runtime ready');
         return await Promise.race([
           crashSupervisor.waitForCrash(testFilePath),
           waitForAbort(signal),
@@ -175,9 +183,11 @@ export const waitForAppReady = async (options: {
       }
     },
     onAttemptStart: () => {
+      logWait('beginning launch attempt for %s', testFilePath);
       crashSupervisor.beginLaunch(testFilePath);
     },
     onAttemptReset: () => {
+      logWait('resetting launch attempt state');
       crashSupervisor.cancelCrashWaiters();
     },
   });
@@ -192,6 +202,11 @@ const getHarnessInternal = async (
   const context: HarnessContext = {
     platform,
   };
+  harnessLogger.debug(
+    'creating Harness internals for runner=%s platform=%s',
+    platform.name,
+    platform.platformId
+  );
   maybeLogMetroCacheReuse(config, platform, projectRoot);
   const pluginAbortController = new AbortController();
   const pluginManager = createHarnessPluginManager<HarnessConfig, HarnessPlatform>({
@@ -257,15 +272,32 @@ const getHarnessInternal = async (
     trackHook(pluginManager.callHook(name, payload));
   };
 
+  harnessLogger.debug(
+    'starting Metro, platform runner, and bridge initialization'
+  );
   const [metroInstance, platformInstance, serverBridge] = await Promise.all([
-    getMetroInstance({ projectRoot, harnessConfig: config }, signal),
-    import(platform.runner).then((module) =>
-      module.default(platform.config, config)
+    getMetroInstance({ projectRoot, harnessConfig: config }, signal).then(
+      (instance) => {
+        harnessLogger.debug('Metro initialized');
+        return instance;
+      }
     ),
+    import(platform.runner)
+      .then((module) => module.default(platform.config, config))
+      .then((instance) => {
+        harnessLogger.debug('platform runner initialized');
+        return instance;
+      }),
     getBridgeServer({
       port: config.webSocketPort,
       timeout: config.bridgeTimeout,
       context,
+    }).then((bridge) => {
+      harnessLogger.debug(
+        'bridge server initialized on port %d',
+        config.webSocketPort
+      );
+      return bridge;
     }),
   ]);
   const crashArtifactWriter = createCrashArtifactWriter({
@@ -478,12 +510,15 @@ const getHarnessInternal = async (
   serverBridge.on('event', bridgeEventListener);
   metroInstance.events.addListener(onMetroEvent);
   appMonitor.addListener(onAppMonitorEvent);
+  harnessLogger.debug('registered runtime, bridge, and Metro listeners');
 
   if (config.forwardClientLogs) {
     metroInstance.events.addListener(clientLogListener);
+    harnessLogger.debug('client log forwarding enabled');
   }
 
   const dispose = async (reason: 'normal' | 'abort' | 'error' = 'normal') => {
+    harnessLogger.debug('disposing Harness (reason=%s)', reason);
     let hookError: unknown;
 
     try {
@@ -515,6 +550,7 @@ const getHarnessInternal = async (
       metroInstance.dispose(),
     ]);
     pluginAbortController.abort();
+    harnessLogger.debug('Harness resources disposed');
 
     if (hookError) {
       throw hookError;
@@ -532,6 +568,7 @@ const getHarnessInternal = async (
       appLaunchOptions,
     });
     await appMonitor.start();
+    harnessLogger.debug('app monitor started');
   } catch (error) {
     const runState = currentRun as HarnessRunState | null;
 
@@ -547,12 +584,15 @@ const getHarnessInternal = async (
     await flushPendingHooks();
     setActiveTestFilePath(testFilePath);
     crashSupervisor.setActiveTestFile(testFilePath);
+    harnessLogger.debug('ensuring app is ready for %s', testFilePath);
 
     if (crashSupervisor.isReady() && (await platformInstance.isAppRunning())) {
+      harnessLogger.debug('reusing existing ready app for %s', testFilePath);
       return;
     }
 
     crashSupervisor.reset();
+    harnessLogger.debug('app not ready, waiting for launch and runtime readiness');
     await waitForAppReady({
       metroInstance,
       serverBridge,
@@ -566,16 +606,24 @@ const getHarnessInternal = async (
       appLaunchOptions,
     });
     await flushPendingHooks();
+    harnessLogger.debug('app is ready for %s', testFilePath);
   };
 
   const restart = async (testFilePath?: string) => {
     await flushPendingHooks();
     await crashSupervisor.stop();
     setActiveTestFilePath(testFilePath);
+    harnessLogger.debug(
+      'restarting app (testFile=%s mode=%s)',
+      testFilePath ?? 'n/a',
+      testFilePath ? 'stop-and-ensure-ready' : 'direct-restart'
+    );
 
     if (testFilePath) {
+      harnessLogger.debug('stopping app before restart');
       await platformInstance.stopApp();
     } else {
+      harnessLogger.debug('requesting direct app restart');
       await platformInstance.restartApp(appLaunchOptions);
     }
 
@@ -587,6 +635,7 @@ const getHarnessInternal = async (
     }
 
     await flushPendingHooks();
+    harnessLogger.debug('restart completed');
   };
 
   return {
@@ -600,6 +649,7 @@ const getHarnessInternal = async (
         throw new Error('No client found');
       }
 
+      harnessLogger.debug('running test file on client: %s', path);
       const result = await client.runTests(path, {
         ...options,
         runner: platform.runner,
@@ -629,6 +679,10 @@ export const getHarness = async (
   projectRoot: string
 ): Promise<Harness> => {
   const abortSignal = AbortSignal.timeout(config.bridgeTimeout);
+  harnessLogger.debug(
+    'creating Harness with bridge timeout %dms',
+    config.bridgeTimeout
+  );
 
   try {
     const harness = await getHarnessInternal(
