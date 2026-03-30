@@ -3,6 +3,7 @@ import {
   BridgeServer,
 } from '@react-native-harness/bridge/server';
 import {
+  HARNESS_BRIDGE_PATH,
   HarnessContext,
   type BridgeEvents,
   type DeviceDescriptor,
@@ -20,6 +21,7 @@ import {
   isMetroCacheReusable,
   waitForMetroBackedAppReady,
   type MetroInstance,
+  type MetroWebSocketEndpoint,
   type ReportableEvent,
 } from '@react-native-harness/bundler-metro';
 import {
@@ -272,34 +274,47 @@ const getHarnessInternal = async (
     trackHook(pluginManager.callHook(name, payload));
   };
 
+  const serverBridge = await getBridgeServer({
+    noServer: true,
+    timeout: config.bridgeTimeout,
+    context,
+  });
   harnessLogger.debug(
     'starting Metro, platform runner, and bridge initialization'
   );
-  const [metroInstance, platformInstance, serverBridge] = await Promise.all([
-    getMetroInstance({ projectRoot, harnessConfig: config }, signal).then(
-      (instance) => {
-        harnessLogger.debug('Metro initialized');
-        return instance;
-      }
-    ),
-    import(platform.runner)
-      .then((module) => module.default(platform.config, config))
-      .then((instance) => {
-        harnessLogger.debug('platform runner initialized');
-        return instance;
-      }),
-    getBridgeServer({
-      port: config.webSocketPort,
-      timeout: config.bridgeTimeout,
-      context,
-    }).then((bridge) => {
-      harnessLogger.debug(
-        'bridge server initialized on port %d',
-        config.webSocketPort
-      );
-      return bridge;
-    }),
-  ]);
+  harnessLogger.debug(
+    'bridge server initialized on Metro websocket path %s',
+    HARNESS_BRIDGE_PATH
+  );
+  const [metroInstance, platformInstance] = await (async () => {
+    try {
+      return await Promise.all([
+        getMetroInstance(
+          {
+            projectRoot,
+            harnessConfig: config,
+            websocketEndpoints: {
+              [HARNESS_BRIDGE_PATH]:
+                serverBridge.ws as unknown as MetroWebSocketEndpoint,
+            },
+          },
+          signal
+        ).then((instance) => {
+          harnessLogger.debug('Metro initialized');
+          return instance;
+        }),
+        import(platform.runner).then((module) =>
+          module.default(platform.config, config)
+        ).then((instance) => {
+          harnessLogger.debug('platform runner initialized');
+          return instance;
+        }),
+      ]);
+    } catch (error) {
+      serverBridge.dispose();
+      throw error;
+    }
+  })();
   const crashArtifactWriter = createCrashArtifactWriter({
     runnerName: platform.name,
     platformId: platform.platformId,

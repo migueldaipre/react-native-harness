@@ -2,6 +2,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { type BirpcGroup, createBirpcGroup } from 'birpc';
 import { logger } from '@react-native-harness/tools';
 import { EventEmitter } from 'node:events';
+import type { Server as HttpServer } from 'node:http';
+import type { Server as HttpsServer } from 'node:https';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,8 +26,25 @@ import { matchImageSnapshot } from './image-snapshot.js';
 export { DeviceNotRespondingError } from './errors.js';
 const bridgeLogger = logger.child('bridge');
 
-export type BridgeServerOptions = {
+type BridgeServerStandaloneOptions = {
   port: number;
+  host?: string;
+};
+
+type BridgeServerAttachedOptions = {
+  server: HttpServer | HttpsServer;
+  path?: string;
+};
+
+type BridgeServerNoServerOptions = {
+  noServer: true;
+};
+
+export type BridgeServerOptions = (
+  | BridgeServerStandaloneOptions
+  | BridgeServerAttachedOptions
+  | BridgeServerNoServerOptions
+) & {
   timeout?: number;
   context: HarnessContext;
 };
@@ -55,16 +74,43 @@ export type BridgeServer = {
 };
 
 export const getBridgeServer = async ({
-  port,
   timeout,
   context,
+  ...transport
 }: BridgeServerOptions): Promise<BridgeServer> => {
-  const wss = await new Promise<WebSocketServer>((resolve) => {
-    const server = new WebSocketServer({ port, host: '0.0.0.0' }, () => {
-      resolve(server);
-    });
-  });
-  bridgeLogger.debug('bridge server listening on port %d', port);
+  const wss =
+    'port' in transport
+      ? await new Promise<WebSocketServer>((resolve) => {
+          const server = new WebSocketServer(
+            {
+              port: transport.port,
+              host: transport.host ?? '0.0.0.0',
+            },
+            () => {
+              resolve(server);
+            }
+          );
+        })
+      : new WebSocketServer(
+          'server' in transport
+            ? {
+                server: transport.server,
+                path: transport.path,
+              }
+            : {
+                noServer: true,
+              }
+        );
+  if ('port' in transport) {
+    bridgeLogger.debug('bridge server listening on port %d', transport.port);
+  } else if ('server' in transport) {
+    bridgeLogger.debug(
+      'bridge server attached to existing HTTP server at path %s',
+      transport.path ?? '/'
+    );
+  } else {
+    bridgeLogger.debug('bridge server created in noServer mode');
+  }
   const emitter = new EventEmitter();
   const clients = new Set<WebSocket>();
   const binaryStore = new BinaryStore();

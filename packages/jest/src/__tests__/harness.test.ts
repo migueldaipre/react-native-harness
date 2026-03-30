@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { HARNESS_BRIDGE_PATH } from '@react-native-harness/bridge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config as HarnessConfig } from '@react-native-harness/config';
 import { definePlugin } from '@react-native-harness/plugins';
@@ -69,6 +70,7 @@ const createBridgeServer = () => {
 
   return {
     serverBridge: {
+      ws: {} as BridgeServer['ws'],
       rpc: {
         clients: [],
       },
@@ -117,6 +119,8 @@ const createMetroInstance = (
   overrides: Partial<MetroInstance> = {}
 ): MetroInstance => ({
   events: createReporter(),
+  httpServer: {} as never,
+  websocketEndpoints: {},
   waitUntilHealthy: vi.fn(async () => 'HTTP 200: packager-status:running'),
   prewarm: vi.fn(async () => false),
   dispose: vi.fn(async () => undefined),
@@ -406,6 +410,19 @@ describe('getHarness', () => {
       '/tmp/project'
     );
 
+    expect(mocks.getBridgeServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        noServer: true,
+      })
+    );
+    expect(mocks.getMetroInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        websocketEndpoints: {
+          [HARNESS_BRIDGE_PATH]: serverBridge.ws,
+        },
+      }),
+      expect.any(AbortSignal)
+    );
     await harness.restart('/tmp/restart.harness.ts');
 
     expect(stopApp).toHaveBeenCalledTimes(1);

@@ -90,7 +90,7 @@ export const getMetroInstance = async (
   options: MetroOptions,
   abortSignal: AbortSignal
 ): Promise<MetroInstance> => {
-  const { projectRoot, harnessConfig } = options;
+  const { projectRoot, harnessConfig, websocketEndpoints = {} } = options;
   const metroPort = harnessConfig.metroPort;
   metroLogger.debug(
     'creating Metro instance for %s on port %d',
@@ -131,6 +131,7 @@ export const getMetroInstance = async (
   const maybeServer = await Metro.runServer(config, {
     waitForBundler: true,
     unstable_extraMiddleware: [middleware],
+    websocketEndpoints,
     ...(metroBindHost ? { host: metroBindHost } : {}),
     watch: process.env.CI ? false : undefined,
   });
@@ -150,6 +151,8 @@ export const getMetroInstance = async (
 
   return {
     events: reporter,
+    httpServer: server,
+    websocketEndpoints,
     waitUntilHealthy: async ({ timeoutMs, signal }) =>
       waitForMetroStatus({ port: metroPort, timeoutMs, signal }),
     prewarm: ({ platform, signal }) => {

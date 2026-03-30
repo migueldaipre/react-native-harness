@@ -75,6 +75,15 @@ export const setup = async (globalConfig: JestConfig.GlobalConfig) => {
 
   const selectedRunner = getHarnessRunner(harnessConfig, cliArgs);
 
+  if (
+    harnessConfig.webSocketPort != null &&
+    harnessConfig.webSocketPort !== harnessConfig.metroPort
+  ) {
+    logger.warn(
+      `Config option "webSocketPort" is deprecated and ignored. Harness now uses metroPort (${harnessConfig.metroPort}) for bridge traffic.`
+    );
+  }
+
   if (globalConfig.collectCoverage) {
     // This is going to be used by @react-native-harness/babel-preset
     // to enable instrumentation of test files.
