@@ -13,6 +13,9 @@
   "references": [
     {
       "path": "../tools/tsconfig.lib.json"
+    },
+    {
+      "path": "../plugins/tsconfig.lib.json"
     }
   ]
 }
