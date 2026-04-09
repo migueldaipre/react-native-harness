@@ -82,7 +82,6 @@ Physical iOS devices always connect to the default Metro port (`8081`). Custom `
 
 - **Xcode**: Xcode must be installed on your system.
 - **xcrun**: Harness uses `xcrun simctl` for simulators and `xcrun devicectl` for physical devices.
-- **libimobiledevice**: `idevicesyslog`, `idevicecrashreport`, and `idevice_id` must be installed and available in `PATH` for physical-device crash diagnostics.
 - **Development Build**: A debug build of your app must be installed on the simulator or device.
 
 ## App Launch Options
@@ -98,7 +97,7 @@ Harness maps them differently depending on the target:
 
 Harness uses separate crash-monitoring implementations by target:
 
-- iOS simulators use `simctl` for live log streaming and also scan local crash reports in `~/Library/Logs/DiagnosticReports`. When Harness finds a matching simulator `.ips` report, it attaches the parsed crash metadata and the crashing thread stack trace.
-- iOS physical devices use `libimobiledevice` to stream logs and pull `.crash` reports from the device.
+- iOS simulators can report startup and runtime crashes with matching crash details when those reports are available on your machine.
+- iOS physical devices can report native crash details as part of the failure output when the connected device provides matching diagnostics.
 
 Native crash details are attached to startup and execution failures when Harness can match the failing process from these sources. When the report contains it, Harness prints the extracted crashing-thread stack trace in the failure output.
