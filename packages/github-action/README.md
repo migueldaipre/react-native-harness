@@ -10,10 +10,13 @@ GitHub Action that simplifies running React Native Harness tests in CI/CD enviro
 
 ## Action
 
-Use:
+Pin the action ref to the **same release as the `react-native-harness` package** in your project’s `package.json` (for example `1.0.0` in dependencies → `@v1.0.0` on the action). The action and npm releases are cut from the same repo; keeping versions aligned avoids drift between what `pnpm install` / `npm ci` resolves and what the workflow runs.
+
+Use a [release tag](https://github.com/callstackincubator/react-native-harness/releases) for normal CI, or `@main` only if you intentionally track the default branch.
 
 ```yaml
-- uses: callstackincubator/react-native-harness@main
+# Match @v… to the react-native-harness version in package.json
+- uses: callstackincubator/react-native-harness@v1.0.0
 ```
 
 The action reads your `rn-harness.config.mjs` file, resolves the `runner` you pass in, and uses that runner's `platformId` to decide which platform-specific setup to execute.
@@ -52,7 +55,7 @@ Hook behavior:
 
 Runner configuration requirements:
 
-- Android runners must include an `avd` property with `apiLevel`, `profile`, `diskSize`, and `heapSize`
+- Android **emulator** runners must include an `avd` property with `apiLevel`, `profile`, `diskSize`, and `heapSize` (the composite action fails fast if this is missing). Physical Android device runners do not use `avd`.
 - iOS runners must include a `device` property with `name` and `systemVersion`
 
 ## Examples
@@ -60,7 +63,7 @@ Runner configuration requirements:
 ### Android runner
 
 ```yaml
-- uses: callstackincubator/react-native-harness@main
+- uses: callstackincubator/react-native-harness@v1.0.0
   with:
     app: './android/app/build/outputs/apk/debug/app-debug.apk'
     runner: 'android'
@@ -77,7 +80,7 @@ Runner configuration requirements:
 ### iOS runner
 
 ```yaml
-- uses: callstackincubator/react-native-harness@main
+- uses: callstackincubator/react-native-harness@v1.0.0
   with:
     app: './ios/build/Build/Products/Debug-iphonesimulator/MyApp.app'
     runner: 'ios'
@@ -91,7 +94,7 @@ Runner configuration requirements:
 ### Web runner
 
 ```yaml
-- uses: callstackincubator/react-native-harness@main
+- uses: callstackincubator/react-native-harness@v1.0.0
   with:
     runner: 'chromium'
     projectRoot: './apps/my-app'

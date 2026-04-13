@@ -107,7 +107,11 @@ The first argument is the manufacturer, and the second is the model name. These 
 
 ## CI Notes
 
-If you use the official GitHub Action with an Android emulator runner, `cacheAvd` works best when your runner includes the emulator's AVD configuration. This helps the action reuse the correct emulator snapshot between runs.
+:::caution Official GitHub Action + Android emulator
+The unified action [`callstackincubator/react-native-harness`](https://github.com/callstackincubator/react-native-harness) **requires** a full `avd` configuration on **emulator** runners (`apiLevel`, `profile`, `diskSize`, `heapSize`). It validates this before booting the emulator. Local CLI runs can target an emulator by name alone; the action needs the structured `avd` object to create or restore the AVD in CI.
+:::
+
+If you use that action with an Android emulator runner, `cacheAvd` works best when your runner includes the emulator's AVD configuration. This helps the action reuse the correct emulator snapshot between runs.
 
 ## App Launch Options
 

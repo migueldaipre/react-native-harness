@@ -19,7 +19,7 @@ React Native Harness provides an official GitHub Action that simplifies running 
 - `callstackincubator/react-native-harness`
 
 :::tip Versioning
-You can pin to a specific version by appending `@<version>` to the action path (e.g., `@main`, `@v1.0.0`). For production use, we recommend pinning to a specific release tag once available.
+Pin the action to the **same [release tag](https://github.com/callstackincubator/react-native-harness/releases) as the `react-native-harness` version in your `package.json`** (for example package `1.0.0` → `uses: callstackincubator/react-native-harness@v1.0.0`). The composite action and the npm package are released together; matching them avoids subtle mismatches between CLI behavior and the workflow steps.
 :::
 
 The action automatically:
@@ -30,7 +30,7 @@ The action automatically:
 - Runs the tests
 - Uploads crash reports from `.harness/crash-reports/` as workflow artifacts whenever a run produces them
 
-The action reads your `rn-harness.config.mjs` file to determine the selected runner's platform and device configuration, so you don't need to hardcode emulator or simulator settings in your workflow.
+The action reads your `rn-harness.config.mjs` file to determine the selected runner's platform and device configuration, so you don't need to duplicate emulator or simulator settings in your workflow. For **Android emulator** runners, the action still requires a full `avd` block in that config (see the [Android platform guide](/docs/platforms/android)).
 
 ### Action Inputs
 
@@ -135,8 +135,9 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           key: android-app-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
 
+      # Keep @v… in sync with the react-native-harness version in package.json
       - name: Run React Native Harness
-        uses: callstackincubator/react-native-harness@main
+        uses: callstackincubator/react-native-harness@v1.0.0
         with:
           app: android/app/build/outputs/apk/debug/app-debug.apk
           runner: android
@@ -209,8 +210,9 @@ jobs:
           path: ios/build/Build/Products/Debug-iphonesimulator/YourApp.app
           key: ios-app-${{ hashFiles('ios/Podfile.lock', 'ios/**/*.pbxproj') }}
 
+      # Keep @v… in sync with the react-native-harness version in package.json
       - name: Run React Native Harness
-        uses: callstackincubator/react-native-harness@main
+        uses: callstackincubator/react-native-harness@v1.0.0
         with:
           app: ios/build/Build/Products/Debug-iphonesimulator/YourApp.app
           runner: ios

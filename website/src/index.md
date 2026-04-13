@@ -24,7 +24,7 @@ features:
     details: Write tests using familiar describe, it, expect, beforeEach, and afterEach syntax. No new testing patterns to learn.
     icon: <img src="/icons/speed-fast.svg" />
   - title: Truly native environment
-    details: Execute tests directly on iOS simulators and Android emulators where native modules are fully available without mocking.
+    details: Execute tests on iOS simulators, Android emulators, or in a real browser (Web), with native modules available where the platform provides them.
     icon: <img src="/icons/device-phone.svg" />
   - title: Quick integration
     details: Add to existing projects with straightforward configuration steps, TypeScript support and CI/CD compatibility.

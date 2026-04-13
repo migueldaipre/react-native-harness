@@ -13,7 +13,7 @@ Bridge the testing gap: Jest-style tests in real native environments. Get the co
 
 - **Jest-Style Syntax, Native Power**: Write familiar describe/it tests that run in real iOS and Android environments with full native module access.
 - **Best of Both Worlds**: Unlike Jest (Node.js only) or Maestro (UI-based), get convenient test syntax AND native environment execution.
-- **Real Device & Simulator Testing**: Execute tests directly on iOS simulators and Android emulators — catch platform-specific issues Jest can't see.
+- **Real Device, Simulator & Web Testing**: Execute tests on iOS simulators, Android emulators, or in a browser (Web) — catch platform-specific issues Jest can't see.
 - **Native Module Testing**: Test native modules, platform APIs, and device-specific functionality that's impossible with JavaScript-only runners.
 - **Familiar Test Structure**: Use beforeEach, afterEach, describe, it, expect — all the testing patterns you know and love from Jest.
 - **Zero Configuration Setup**: Drop-in replacement for your existing test workflow with TypeScript support and seamless CI/CD integration.
@@ -60,8 +60,10 @@ export default config;
 The documentation is available at [react-native-harness.dev](https://react-native-harness.dev). You can also use the following links to jump to specific topics:
 
 - [Quick Start](https://react-native-harness.dev/docs/getting-started/quick-start)
+- [Configuration](https://react-native-harness.dev/docs/getting-started/configuration) (Metro port, plugins, timeouts, coverage, and more)
 - [Problem Statement](https://react-native-harness.dev/docs/getting-started/problem-statement)
 - [Feature Comparison](https://react-native-harness.dev/docs/feature-comparison)
+- [Running in CI/CD](https://react-native-harness.dev/docs/guides/ci-cd)
 - [API Reference](https://react-native-harness.dev/docs/api/defining-tests)
 
 ## Made with ❤️ at Callstack

@@ -4,7 +4,7 @@ Before diving deep into React Native Harness and introducing it into your projec
 
 ## What is React Native Harness?
 
-React Native Harness is a testing tool for testing native modules in their native environments (Android, iOS) in a convenient way, using well-known Jest/Vitest syntax. Unlike traditional Jest tests that run in Node.js without access to native functionality, Harness executes your tests directly on real devices and simulators where native modules are available.
+React Native Harness is a testing tool for exercising native and web code in real environments (Android, iOS, and Web via the browser) in a convenient way, using well-known Jest/Vitest syntax. Unlike traditional Jest tests that run in Node.js without access to native functionality, Harness executes your tests directly on real devices and simulators where native modules are available.
 
 For a detailed explanation of the problems with current testing approaches and how Harness solves them, see [Problem Statement](/docs/getting-started/problem-statement).
 

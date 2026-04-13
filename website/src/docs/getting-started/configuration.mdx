@@ -117,6 +117,8 @@ Harness treats `metroPort` as the preferred starting port. If that port is alrea
 Physical iOS devices are the exception: they always use the default Metro port and do not support custom or fallback ports.
 
 When multiple Harness runs target the same device, simulator, emulator, or browser configuration, Harness waits for the existing run to finish before starting the next one.
+
+When a run finishes, Harness clears platform-specific dev settings it applied for the session (for example the Android debug HTTP host override and the iOS simulator JS location override) so your next normal Metro or dev-client launch is not stuck pointing at Harness's port.
 :::
 
 A test runner defines how tests are executed on a specific platform. React Native Harness uses platform-specific packages to create runners with type-safe configurations.
