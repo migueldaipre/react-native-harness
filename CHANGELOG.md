@@ -1,3 +1,31 @@
+## 1.1.0 (2026-04-13)
+
+### 🚀 Features
+
+- Metro bundler watch mode is now automatically disabled when running in a CI environment. ([#73](https://github.com/callstackincubator/react-native-harness/pull/73))
+- Startup crash detection now monitors apps during launch and reports crashes before the first test even begins, with detailed diagnostics for both iOS and Android. On iOS, Harness prefers Apple diagnostic crash reports (including simulator `.ips` reports under DiagnosticReports) and device-side diagnostics from `devicectl` where available. Crash report selection on iOS simulators uses a more reliable algorithm that tolerates timing variations. ([#71](https://github.com/callstackincubator/react-native-harness/pull/71))
+- Replaces the split Android/iOS/Web actions with a single composite action at the repository root (`callstackincubator/react-native-harness`). The action selects setup from your `rn-harness.config.mjs` runner, restores and saves `.harness/metro-cache` automatically, supports optional `preRunHook` and `afterRunHook` scripts, uploads crash artifacts from `.harness/crash-reports/`, and exposes Android AVD snapshot caching via `cacheAvd`. Older per-platform action entrypoints are deprecated in favor of the unified workflow. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Introduces a first-class plugin system: define hooks with `definePlugin()` from `@react-native-harness/plugins` and register them under `plugins` in `rn-harness.config.mjs`. Plugins can observe Harness, Metro, run, app, suite, and test lifecycle events for logging, artifacts, or custom automation. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+
+### 🩹 Fixes
+
+- Metro cache is now stored under `.harness/metro-cache` in the project root. Set `unstable__enableMetroCache: true` in your config to use it; Harness will log when reusing the cache between runs. In CI, you can cache `.harness/metro-cache` to speed up Metro bundling. ([#74](https://github.com/callstackincubator/react-native-harness/pull/74))
+- Harness now restores app startup stall recovery for RN-ready launches, including restart-between-files. Apps are retried when startup stalls without a crash, while confirmed native crashes still fail immediately with crash diagnostics. ([#78](https://github.com/callstackincubator/react-native-harness/pull/78))
+- Harness now falls back to the next available Metro port when the configured port is already in use, which lets multiple Harness runs start at the same time without colliding on Metro. When this happens, Harness keeps the selected port consistent for the whole run and prints a message showing which port it ended up using. ([#96](https://github.com/callstackincubator/react-native-harness/pull/96))
+- Mobile runners now fully disable native crash monitoring when `detectNativeCrashes` is set to `false`, including iOS simulators and Android emulators and physical devices. This keeps crash-monitor setup aligned with the runtime setting while preserving the existing default behavior of enabling native crash detection when the option is omitted. ([#94](https://github.com/callstackincubator/react-native-harness/pull/94))
+- Physical iOS app launches now pass Harness launch arguments to `xcrun devicectl` without breaking JSON output collection. This prevents app launch arguments from being misinterpreted as `devicectl` flags and keeps device launches working when custom arguments are provided. ([#93](https://github.com/callstackincubator/react-native-harness/pull/93))
+- Harness now queues concurrent runs before starting Metro when they target the same locked resource, such as the same simulator, device, or browser. Queueing is keyed by the platform resource lock rather than the configured Metro port, so runs using different ports still wait if they target the same resource. ([#91](https://github.com/callstackincubator/react-native-harness/pull/91))
+- Improves Expo app startup and compatibility: Metro resolves package-style entry points before Harness rewrites, recognizes Expo’s virtual Metro entry during readiness checks, and aligns runtime bridge initialization with Expo’s Metro runtime and the React Compiler. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Adds `metroPort` to Harness config and `--metroPort` on the CLI so you can steer Metro and the in-process bridge together. The legacy `webSocketPort` option is ignored; bridge traffic uses the Metro port. When a run ends, Harness clears Android debug HTTP host and iOS simulator JS location overrides so the next normal dev-client or Metro launch is not left pointing at Harness. Includes a URL polyfill path used by the WebSocket bridge where the host runtime does not provide `URL` globally. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Refreshes the in-app Harness runner screen visuals and builds the test overlay against React Native 0.85+ APIs so the runtime UI stays compatible with current React Native releases. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Installs Android SDK and emulator-related tooling only when an Android flow actually needs it, so Apple-only or web-only workflows avoid unnecessary Android package setup. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+- Refreshes shared target resource locks atomically when renewing heartbeats, improving reliability when multiple Harness processes queue on the same simulator, device, or browser configuration. ([](https://github.com/callstackincubator/react-native-harness/commit/))
+
+### ❤️ Thank You
+
+- Hanno J. Gödecke
+- Szymon Chmal @V3RON
+
 # 1.0.0 (2026-03-11)
 
 ### 🩹 Fixes
