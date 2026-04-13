@@ -43,6 +43,15 @@ This project uses GitHub Actions to run validation checks on your pull requests.
 
 Currently, releases are published by maintainers when they determine it's time to do so. Usually, there is at least one release per week as long as there are changes waiting to be published.
 
+Version bumps use [Nx release](https://nx.dev/docs/features/manage-releases) with files under `.nx/version-plans/`. The top-level `nx release` command expects `release.git` in `nx.json`; this repo uses **`nx release version`** and **`nx release changelog`** instead, with git settings under `release.version.git` and `release.changelog.git` (Nx 22).
+
+Typical flow **without publishing to npm**:
+
+1. `pnpm exec nx release version` — runs the configured `preVersionCommand` (full package build), applies version plans, bumps `packages/*/package.json`, updates the lockfile if needed, and stages changes.
+2. `pnpm exec nx release changelog <version>` — prepends that version to the root `CHANGELOG.md`. With the default `nx.json`, this does **not** create a GitHub release or push (set `release.changelog.workspaceChangelog.createRelease` to `"github"` only when you intentionally want an automated GitHub release from your machine).
+
+Publishing to the registry is a separate step: `pnpm exec nx release publish` (requires registry credentials). It is **not** part of the commands above.
+
 ## License
 
 By contributing to React Native Harness, you agree that your contributions will be licensed under its MIT license.
