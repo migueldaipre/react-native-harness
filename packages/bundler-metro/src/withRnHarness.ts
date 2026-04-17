@@ -15,7 +15,7 @@ const INTERNAL_CALLSITES_REGEX =
 
 export const withRnHarness = <T extends MetroConfig>(
   config: T | Promise<T>,
-  isInvokedByHarness = false
+  isInvokedByHarness = false,
 ): (() => Promise<T>) => {
   return async () => {
     if (!isInvokedByHarness) {
@@ -42,9 +42,7 @@ export const withRnHarness = <T extends MetroConfig>(
         getPolyfills: (...args) => [
           ...(metroConfig.serializer?.getPolyfills?.(...args) ?? []),
           harnessManifest,
-          require.resolve(
-            '@react-native-harness/runtime/polyfills/harness-module-system'
-          ),
+          require.resolve('@react-native-harness/runtime/polyfills/harness-module-system'),
         ],
         isThirdPartyModule({ path: modulePath }) {
           const isThirdPartyByDefault =
