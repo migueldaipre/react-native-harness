@@ -106,7 +106,7 @@ export type HarnessPlatformRunner = {
   isAppRunning: () => Promise<boolean>;
   createAppMonitor: (options?: CreateAppMonitorOptions) => AppMonitor;
   getCrashDetails?: (
-    options: CrashDetailsLookupOptions
+    options: CrashDetailsLookupOptions,
   ) => Promise<AppCrashDetails | null>;
 };
 

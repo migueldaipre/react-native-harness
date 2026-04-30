@@ -4,6 +4,10 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import {
+  DeviceHostnameLookupError,
+  DeviceNotFoundError,
+} from './devicectl-errors.js';
 
 export const devicectl = async <TOutput>(
   command: string,
@@ -35,7 +39,11 @@ export const devicectl = async <TOutput>(
 
 export type AppleDeviceInfo = {
   identifier: string;
+  connectionProperties?: AppleDeviceConnectionProperties;
   deviceProperties: {
+    dnsName?: string;
+    hostname?: string;
+    hostName?: string;
     name: string;
     osVersionNumber: string;
   };
@@ -44,6 +52,23 @@ export type AppleDeviceInfo = {
     productType: string;
     udid: string;
   };
+  networkProperties?: AppleDeviceNetworkProperties;
+};
+
+type AppleDeviceConnectionProperties = {
+  dnsName?: string;
+  hostname?: string;
+  hostName?: string;
+  potentialHostnames?: string[];
+  tunnelIPAddress?: string;
+  tunnelIPHostname?: string;
+};
+
+type AppleDeviceNetworkProperties = {
+  dnsName?: string;
+  hostname?: string;
+  hostName?: string;
+  ipAddress?: string;
 };
 
 export const listDevices = async (): Promise<AppleDeviceInfo[]> => {
@@ -51,6 +76,74 @@ export const listDevices = async (): Promise<AppleDeviceInfo[]> => {
     'devices',
   ]);
   return result.devices;
+};
+
+type AppleDeviceDetailsResult =
+  | AppleDeviceInfo
+  | {
+      device: AppleDeviceInfo;
+    };
+
+export const getDeviceDetails = async (
+  identifier: string
+): Promise<AppleDeviceInfo> => {
+  const result = await devicectl<AppleDeviceDetailsResult>('device', [
+    'info',
+    'details',
+    '--device',
+    identifier,
+  ]);
+
+  return 'device' in result ? result.device : result;
+};
+
+export const getDeviceConnectionHost = (
+  device: AppleDeviceInfo
+): string | null => {
+  const connection = device.connectionProperties;
+  const network = device.networkProperties;
+
+  const candidates = [
+    connection?.tunnelIPAddress,
+    connection?.tunnelIPHostname,
+    connection?.dnsName,
+    connection?.hostName,
+    connection?.hostname,
+    network?.ipAddress,
+    network?.dnsName,
+    network?.hostName,
+    network?.hostname,
+    device.deviceProperties.dnsName,
+    device.deviceProperties.hostName,
+    device.deviceProperties.hostname,
+    ...(connection?.potentialHostnames ?? []),
+  ].filter((host): host is string => Boolean(host));
+
+  return candidates[0] ?? null;
+};
+
+export const getDeviceHostname = async (
+  identifier: string
+): Promise<string> => {
+  try {
+    const details = await getDeviceDetails(identifier);
+    const hostname = getDeviceConnectionHost(details);
+
+    if (!hostname) {
+      throw new DeviceHostnameLookupError(
+        identifier,
+        'CoreDevice did not report a network address'
+      );
+    }
+
+    return hostname;
+  } catch (error) {
+    if (error instanceof DeviceHostnameLookupError) {
+      throw error;
+    }
+
+    throw new DeviceNotFoundError(identifier);
+  }
 };
 
 export type AppleAppInfo = {
@@ -206,20 +299,6 @@ export const copyFileFrom = async (
     options.destination,
     '--domain-type',
     options.domainType,
-  ]);
-};
-
-export const diagnose = async (
-  identifier: string,
-  outputDir: string
-): Promise<void> => {
-  await devicectl('diagnose', [
-    '--devices',
-    identifier,
-    '--no-archive',
-    '--archive-destination',
-    outputDir,
-    '--keep-temp-dir',
   ]);
 };
 

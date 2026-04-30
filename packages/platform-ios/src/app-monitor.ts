@@ -184,15 +184,15 @@ const createAppMonitorBase = () => {
       : [];
     const matchingByProcess = options.processName
       ? recentCrashArtifacts.filter(
-          (artifact) => artifact.processName === options.processName
-        )
+        (artifact) => artifact.processName === options.processName
+      )
       : [];
     const candidates =
       matchingByPid.length > 0
         ? matchingByPid
         : matchingByProcess.length > 0
-        ? matchingByProcess
-        : recentCrashArtifacts;
+          ? matchingByProcess
+          : recentCrashArtifacts;
     const preferredCandidates = candidates.filter(
       (artifact) => artifact.artifactType === 'ios-crash-report'
     );

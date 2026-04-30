@@ -1,5 +1,5 @@
 import { type AndroidAppLaunchOptions } from '@react-native-harness/platforms';
-import { spawn, SubprocessError } from '@react-native-harness/tools';
+import { logger, spawn, SubprocessError } from '@react-native-harness/tools';
 import { spawn as nodeSpawn } from 'node:child_process';
 import type { ChildProcessByStdio } from 'node:child_process';
 import { access, rm } from 'node:fs/promises';
@@ -23,6 +23,10 @@ import {
   getEmulatorStartupArgs,
   type EmulatorBootMode,
 } from './emulator-startup.js';
+import {
+  AdbAppNotInstalledError,
+  AdbPermissionGrantError,
+} from './adb-errors.js';
 
 const wait = async (ms: number): Promise<void> => {
   await new Promise((resolve) => {
@@ -59,6 +63,7 @@ const waitWithSignal = async (
 
 const EMULATOR_STARTUP_OBSERVATION_TIMEOUT_MS = 5000;
 const EMULATOR_OUTPUT_BUFFER_LIMIT = 16 * 1024;
+const androidAdbLogger = logger.child('android-adb');
 
 export const emulatorProcess = {
   startDetachedProcess: (
@@ -374,6 +379,79 @@ export const getDeviceInfo = async (
   return { manufacturer, model };
 };
 
+const getRequestedPermissions = async (
+  adbId: string,
+  bundleId: string,
+): Promise<string[]> => {
+  const { stdout } = await spawn(getAdbBinaryPath(), [
+    '-s',
+    adbId,
+    'shell',
+    'dumpsys',
+    'package',
+    bundleId,
+  ]);
+
+  const requestedPermissions = new Set<string>();
+  const lines = stdout.split('\n');
+  let inRequestedPermissionsSection = false;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    if (trimmedLine === 'requested permissions:') {
+      inRequestedPermissionsSection = true;
+      continue;
+    }
+
+    if (!inRequestedPermissionsSection) {
+      continue;
+    }
+
+    if (trimmedLine === '') {
+      continue;
+    }
+
+    if (trimmedLine.endsWith(':')) {
+      break;
+    }
+
+    if (/^[a-zA-Z0-9_.]+$/.test(trimmedLine)) {
+      requestedPermissions.add(trimmedLine);
+      continue;
+    }
+
+    break;
+  }
+
+  return [...requestedPermissions];
+};
+
+const getDangerousPermissions = async (adbId: string): Promise<Set<string>> => {
+  const { stdout } = await spawn(getAdbBinaryPath(), [
+    '-s',
+    adbId,
+    'shell',
+    'pm',
+    'list',
+    'permissions',
+    '-g',
+    '-d',
+  ]);
+
+  const dangerousPermissions = new Set<string>();
+
+  for (const match of stdout.matchAll(/permission:([a-zA-Z0-9_.]+)/g)) {
+    const permission = match[1]?.trim();
+
+    if (permission) {
+      dangerousPermissions.add(permission);
+    }
+  }
+
+  return dangerousPermissions;
+};
+
 export const isBootCompleted = async (adbId: string): Promise<boolean> => {
   try {
     const bootCompleted = await getShellProperty(adbId, 'sys.boot_completed');
@@ -396,6 +474,13 @@ export const installApp = async (
   appPath: string,
 ): Promise<void> => {
   await spawn(getAdbBinaryPath(), ['-s', adbId, 'install', '-r', appPath]);
+};
+
+export const uninstallApp = async (
+  adbId: string,
+  bundleId: string,
+): Promise<void> => {
+  await spawn(getAdbBinaryPath(), ['-s', adbId, 'uninstall', bundleId]);
 };
 
 export const hasAvd = async (name: string): Promise<boolean> => {
@@ -729,4 +814,78 @@ export const getConnectedDevices = async (): Promise<AdbDevice[]> => {
   }
 
   return devices;
+};
+
+export const grantPermissions = async (
+  adbId: string,
+  bundleId: string,
+): Promise<void> => {
+  androidAdbLogger.debug('grantPermissions:start %o', {
+    adbId,
+    bundleId,
+  });
+
+  const isInstalled = await isAppInstalled(adbId, bundleId);
+  if (!isInstalled) {
+    throw new AdbAppNotInstalledError(bundleId, adbId);
+  }
+
+  const [requestedPermissions, dangerousPermissions] = await Promise.all([
+    getRequestedPermissions(adbId, bundleId),
+    getDangerousPermissions(adbId),
+  ]);
+  const permissions = requestedPermissions.filter((permission) =>
+    dangerousPermissions.has(permission),
+  );
+
+  androidAdbLogger.debug('grantPermissions:resolved %o', {
+    adbId,
+    bundleId,
+    requestedPermissions,
+    permissions,
+  });
+
+  if (permissions.length === 0) {
+    androidAdbLogger.debug('grantPermissions:skip %o', {
+      adbId,
+      bundleId,
+    });
+    return;
+  }
+
+  const grantCommands = permissions.map((permission) => [
+    '-s',
+    adbId,
+    'shell',
+    'pm',
+    'grant',
+    bundleId,
+    permission,
+  ]);
+
+  try {
+    androidAdbLogger.debug('grantPermissions:commands %o', {
+      adbId,
+      bundleId,
+      grantCommands,
+    });
+
+    await Promise.all(
+      grantCommands.map((args) => spawn(getAdbBinaryPath(), args as string[])),
+    );
+
+    androidAdbLogger.debug('grantPermissions:success %o', {
+      adbId,
+      bundleId,
+      permissions,
+    });
+  } catch (error) {
+    androidAdbLogger.debug('grantPermissions:error %o', {
+      adbId,
+      bundleId,
+      permissions,
+      error,
+    });
+    throw new AdbPermissionGrantError(bundleId, permissions, adbId);
+  }
 };

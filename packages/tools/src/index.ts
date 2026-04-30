@@ -1,4 +1,5 @@
 export * from './abort.js';
+export * from './net.js';
 export * from './color.js';
 export * from './logger.js';
 export * from './prompts.js';
@@ -8,5 +9,6 @@ export * from './error.js';
 export * from './events.js';
 export * from './packages.js';
 export * from './crash-artifacts.js';
+export * from './harness-artifacts.js';
 export * from './regex.js';
 export * from './isInteractive.js';

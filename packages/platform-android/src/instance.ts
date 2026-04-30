@@ -59,6 +59,20 @@ const getHarnessAppPath = (): string => {
   return appPath;
 };
 
+const getOptionalHarnessAppPath = (): string | undefined => {
+  const appPath = process.env.HARNESS_APP_PATH;
+
+  if (!appPath) {
+    return undefined;
+  }
+
+  if (!fs.existsSync(appPath)) {
+    throw new HarnessAppPathError('invalid', appPath);
+  }
+
+  return appPath;
+};
+
 const configureAndroidRuntime = async (
   adbId: string,
   config: AndroidPlatformConfig,
@@ -180,6 +194,7 @@ export const getAndroidEmulatorPlatformInstance = async (
 ): Promise<HarnessPlatformRunner> => {
   assertAndroidDeviceEmulator(config.device);
   const detectNativeCrashes = harnessConfig.detectNativeCrashes ?? true;
+  const permissionsEnabled = harnessConfig.permissions ?? false;
   const emulatorConfig = config.device;
   const emulatorName = emulatorConfig.name;
   const avdConfig = emulatorConfig.avd;
@@ -250,13 +265,21 @@ export const getAndroidEmulatorPlatformInstance = async (
   );
 
   const isInstalled = await adb.isAppInstalled(adbId, config.bundleId);
+  const appPath = getOptionalHarnessAppPath();
 
-  if (!isInstalled) {
-    const appPath = getHarnessAppPath();
+  if (isInstalled && appPath) {
+    await adb.uninstallApp(adbId, config.bundleId);
     await adb.installApp(adbId, appPath);
+  } else if (!isInstalled) {
+    const installPath = appPath ?? getHarnessAppPath();
+    await adb.installApp(adbId, installPath);
   }
 
   const appUid = await configureAndroidRuntime(adbId, config, harnessConfig);
+
+  if (permissionsEnabled) {
+    await adb.grantPermissions(adbId, config.bundleId);
+  }
 
   return {
     startApp: async (options) => {
@@ -315,6 +338,7 @@ export const getAndroidPhysicalDevicePlatformInstance = async (
 ): Promise<HarnessPlatformRunner> => {
   assertAndroidDevicePhysical(config.device);
   const detectNativeCrashes = harnessConfig.detectNativeCrashes ?? true;
+  const permissionsEnabled = harnessConfig.permissions ?? false;
 
   const adbId = await getAdbId(config.device);
 
@@ -332,6 +356,10 @@ export const getAndroidPhysicalDevicePlatformInstance = async (
   }
 
   const appUid = await configureAndroidRuntime(adbId, config, harnessConfig);
+
+  if (permissionsEnabled) {
+    await adb.grantPermissions(adbId, config.bundleId);
+  }
 
   return {
     startApp: async (options) => {

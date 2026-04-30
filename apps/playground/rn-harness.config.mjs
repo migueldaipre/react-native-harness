@@ -72,8 +72,10 @@ export default {
     }),
     applePlatform({
       name: 'iphone-16-pro',
-      device: applePhysicalDevice('iPhone (Szymon) (2)'),
-      bundleId: 'react-native-harness',
+      device: applePhysicalDevice('iPhone (Szymon) (2)', {
+        codeSign: { teamId: 'BAJL5U28HC' },
+      }),
+      bundleId: 'com.harnessplayground',
     }),
     applePlatform({
       name: 'ios',
@@ -118,6 +120,8 @@ export default {
   platformReadyTimeout: 300000,
   bridgeTimeout: 120000,
 
+  permissions: true,
+  detectNativeCrashes: true,
   resetEnvironmentBetweenTestFiles: true,
   unstable__enableMetroCache: true,
   unstable__skipAlreadyIncludedModules: false,

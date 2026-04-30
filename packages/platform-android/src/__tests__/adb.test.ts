@@ -12,6 +12,7 @@ import {
   hasAvd,
   installApp,
   startEmulator,
+  uninstallApp,
   waitForBoot,
   waitForEmulatorDisconnect,
 } from '../adb.js';
@@ -143,6 +144,21 @@ describe('getStartAppArgs', () => {
       'install',
       '-r',
       '/tmp/app.apk',
+    ]);
+  });
+
+  it('uninstalls the app via adb', async () => {
+    const spawnSpy = vi
+      .spyOn(tools, 'spawn')
+      .mockResolvedValueOnce({} as Awaited<ReturnType<typeof tools.spawn>>);
+
+    await uninstallApp('emulator-5554', 'com.example.app');
+
+    expect(spawnSpy).toHaveBeenCalledWith(expect.stringMatching(/adb$/), [
+      '-s',
+      'emulator-5554',
+      'uninstall',
+      'com.example.app',
     ]);
   });
 
@@ -594,5 +610,91 @@ describe('getStartAppArgs', () => {
 
     await expect(waitPromise).resolves.toBeUndefined();
     expect(spawnSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('grants requested dangerous permissions to an app', async () => {
+    const { grantPermissions } = await import('../adb.js');
+    const spawnSpy = vi
+      .spyOn(tools, 'spawn')
+      .mockResolvedValueOnce({
+        stdout: 'package:com.example.app\n',
+      } as Awaited<ReturnType<typeof tools.spawn>>)
+      .mockResolvedValueOnce({
+        stdout: `requested permissions:\n  android.permission.CAMERA\n  android.permission.INTERNET\n  android.permission.ACCESS_FINE_LOCATION\ninstall permissions:\n`,
+      } as Awaited<ReturnType<typeof tools.spawn>>)
+      .mockResolvedValueOnce({
+        stdout: `Dangerous Permissions:\n  permission:android.permission.CAMERA\n  permission:android.permission.ACCESS_FINE_LOCATION\n`,
+      } as Awaited<ReturnType<typeof tools.spawn>>)
+      .mockResolvedValue({
+        stdout: '',
+      } as Awaited<ReturnType<typeof tools.spawn>>);
+
+    await grantPermissions('emulator-5554', 'com.example.app');
+
+    expect(spawnSpy).toHaveBeenCalledTimes(5);
+    expect(spawnSpy).toHaveBeenNthCalledWith(1, expect.any(String), [
+      '-s',
+      'emulator-5554',
+      'shell',
+      'pm',
+      'list',
+      'packages',
+      'com.example.app',
+    ]);
+    expect(spawnSpy).toHaveBeenNthCalledWith(2, expect.any(String), [
+      '-s',
+      'emulator-5554',
+      'shell',
+      'dumpsys',
+      'package',
+      'com.example.app',
+    ]);
+    expect(spawnSpy).toHaveBeenNthCalledWith(3, expect.any(String), [
+      '-s',
+      'emulator-5554',
+      'shell',
+      'pm',
+      'list',
+      'permissions',
+      '-g',
+      '-d',
+    ]);
+    expect(spawnSpy).toHaveBeenNthCalledWith(4, expect.any(String), [
+      '-s',
+      'emulator-5554',
+      'shell',
+      'pm',
+      'grant',
+      'com.example.app',
+      'android.permission.CAMERA',
+    ]);
+    expect(spawnSpy).toHaveBeenNthCalledWith(5, expect.any(String), [
+      '-s',
+      'emulator-5554',
+      'shell',
+      'pm',
+      'grant',
+      'com.example.app',
+      'android.permission.ACCESS_FINE_LOCATION',
+    ]);
+  });
+
+  it('does nothing when the app has no grantable dangerous permissions', async () => {
+    const { grantPermissions } = await import('../adb.js');
+    const spawnSpy = vi
+      .spyOn(tools, 'spawn')
+      .mockResolvedValueOnce({
+        stdout: 'package:com.example.app\n',
+      } as Awaited<ReturnType<typeof tools.spawn>>)
+      .mockResolvedValueOnce({
+        stdout: `requested permissions:\n  android.permission.INTERNET\ninstall permissions:\n`,
+      } as Awaited<ReturnType<typeof tools.spawn>>)
+      .mockResolvedValueOnce({
+        stdout: `Dangerous Permissions:\n  permission:android.permission.CAMERA\n`,
+      } as Awaited<ReturnType<typeof tools.spawn>>);
+
+    await grantPermissions('emulator-5554', 'com.example.app');
+
+    expect(spawnSpy).toHaveBeenCalledTimes(3);
   });
 });

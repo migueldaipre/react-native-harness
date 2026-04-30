@@ -125,7 +125,7 @@ const createReporter = (): Reporter => {
 };
 
 const createMetroInstance = (
-  overrides: Partial<MetroInstance> = {}
+  overrides: Partial<MetroInstance> = {},
 ): MetroInstance => ({
   events: createReporter(),
   httpServer: {} as never,
@@ -163,7 +163,7 @@ const createAppMonitor = (): {
 };
 
 const createPlatformRunner = (
-  overrides: Partial<HarnessPlatformRunner> = {}
+  overrides: Partial<HarnessPlatformRunner> = {},
 ): HarnessPlatformRunner => ({
   startApp: vi.fn(async () => undefined),
   restartApp: vi.fn(async () => undefined),
@@ -175,7 +175,7 @@ const createPlatformRunner = (
 });
 
 const createHarnessConfig = (
-  overrides: Partial<HarnessConfig> = {}
+  overrides: Partial<HarnessConfig> = {},
 ): HarnessConfig =>
   ({
     appRegistryComponentName: 'App',
@@ -196,7 +196,7 @@ const createHarnessConfig = (
     unstable__skipAlreadyIncludedModules: false,
     webSocketPort: 3001,
     ...overrides,
-  } as HarnessConfig);
+  }) as HarnessConfig;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -230,7 +230,7 @@ describe('waitForAppReady', () => {
         emitReady();
         await readyPromise;
         options.onAttemptReset?.();
-      }
+      },
     );
 
     await waitForAppReady({
@@ -255,7 +255,7 @@ describe('waitForAppReady', () => {
         startAttempt: expect.any(Function),
         waitForReady: expect.any(Function),
         waitForCrash: expect.any(Function),
-      })
+      }),
     );
     expect(crashSupervisor.isReady()).toBe(true);
 
@@ -276,7 +276,7 @@ describe('waitForAppReady', () => {
     mocks.waitForMetroBackedAppReady.mockImplementationOnce(
       async (options: WaitForMetroBackedAppReadyOptions) => {
         await options.startAttempt();
-      }
+      },
     );
 
     await waitForAppReady({
@@ -324,7 +324,7 @@ describe('getHarness', () => {
           setTimeout(() => {
             reject(new DOMException('The operation was aborted', 'AbortError'));
           }, 20);
-        })
+        }),
     );
 
     const platform: HarnessPlatform = {
@@ -333,7 +333,7 @@ describe('getHarness', () => {
       name: 'ios',
       platformId: 'ios',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
     };
 
@@ -343,8 +343,8 @@ describe('getHarness', () => {
           platformReadyTimeout: 10,
         }),
         platform,
-        '/tmp/project'
-      )
+        '/tmp/project',
+      ),
     ).rejects.toBeInstanceOf(PlatformReadyTimeoutError);
   });
 
@@ -372,14 +372,14 @@ describe('getHarness', () => {
       name: 'ios',
       platformId: 'ios',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
     };
 
     const harness = await getHarness(
       createHarnessConfig(),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     expect(runner).toHaveBeenCalledWith(
@@ -389,7 +389,7 @@ describe('getHarness', () => {
       }),
       expect.objectContaining({
         signal: expect.any(AbortSignal),
-      })
+      }),
     );
 
     await harness.dispose();
@@ -422,14 +422,14 @@ describe('getHarness', () => {
       name: 'android',
       platformId: 'android',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
     };
 
     const harness = await getHarness(
       createHarnessConfig(),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     expect(harness.config.metroPort).toBe(8082);
@@ -439,7 +439,7 @@ describe('getHarness', () => {
           metroPort: 8082,
         }),
       }),
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
     );
     expect(runner).toHaveBeenCalledWith(
       platform.config,
@@ -448,7 +448,7 @@ describe('getHarness', () => {
       }),
       expect.objectContaining({
         signal: expect.any(AbortSignal),
-      })
+      }),
     );
     expect(mocks.logMetroPortFallback).toHaveBeenCalledWith(8081, 8082);
 
@@ -467,7 +467,7 @@ describe('getHarness', () => {
     };
 
     await expect(
-      getHarness(createHarnessConfig(), platform, '/tmp/project')
+      getHarness(createHarnessConfig(), platform, '/tmp/project'),
     ).rejects.toBeInstanceOf(MetroPortRangeExhaustedError);
 
     expect(mocks.getBridgeServer).not.toHaveBeenCalled();
@@ -496,14 +496,14 @@ describe('getHarness', () => {
       name: 'legacy-ios',
       platformId: 'ios',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
     };
 
     const harness = await getHarness(
       createHarnessConfig(),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     await harness.dispose();
@@ -527,7 +527,7 @@ describe('getHarness', () => {
         const readyPromise = options.waitForReady(new AbortController().signal);
         emitReady();
         await readyPromise;
-      }
+      },
     );
 
     (
@@ -547,7 +547,7 @@ describe('getHarness', () => {
       name: 'ios',
       platformId: 'ios',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
       getResourceLockKey: () => 'ios:simulator:iPhone 17 Pro:26.2',
     };
@@ -557,7 +557,7 @@ describe('getHarness', () => {
         bridgeTimeout: 1,
       }),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     await harness.ensureAppReady('/tmp/example.harness.ts');
@@ -593,7 +593,7 @@ describe('getHarness', () => {
         const readyPromise = options.waitForReady(new AbortController().signal);
         emitReady();
         await readyPromise;
-      }
+      },
     );
 
     (
@@ -613,7 +613,7 @@ describe('getHarness', () => {
       name: 'ios',
       platformId: 'ios',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
       getResourceLockKey: () => 'ios:simulator:iPhone 17 Pro:26.2',
     };
@@ -621,13 +621,13 @@ describe('getHarness', () => {
     const harness = await getHarness(
       createHarnessConfig(),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     expect(mocks.getBridgeServer).toHaveBeenCalledWith(
       expect.objectContaining({
         noServer: true,
-      })
+      }),
     );
     expect(mocks.getMetroInstance).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -635,7 +635,7 @@ describe('getHarness', () => {
           [HARNESS_BRIDGE_PATH]: serverBridge.ws,
         },
       }),
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
     );
     await harness.restart('/tmp/restart.harness.ts');
 
@@ -691,7 +691,7 @@ describe('plugins', () => {
                 ctx.appLaunchOptions == null
                   ? 'no-launch-options'
                   : 'launch-options'
-              }`
+              }`,
             );
           },
           beforeRun: (ctx) => {
@@ -700,24 +700,24 @@ describe('plugins', () => {
                 ctx.appLaunchOptions == null
                   ? 'no-launch-options'
                   : 'launch-options'
-              }`
+              }`,
             );
           },
           afterRun: (ctx) => {
             observedHooks.push(
-              `afterRun:${ctx.state.creationCount}:${ctx.reason}`
+              `afterRun:${ctx.state.creationCount}:${ctx.reason}`,
             );
           },
           beforeDispose: (ctx) => {
             observedHooks.push(
-              `beforeDispose:${ctx.state.creationCount}:${ctx.reason}`
+              `beforeDispose:${ctx.state.creationCount}:${ctx.reason}`,
             );
           },
         },
         runtime: {
           ready: (ctx) => {
             observedHooks.push(
-              `runtime.ready:${ctx.runId}:${ctx.device.platform}`
+              `runtime.ready:${ctx.runId}:${ctx.device.platform}`,
             );
           },
           disconnected: (ctx) => {
@@ -743,7 +743,7 @@ describe('plugins', () => {
       name: 'ios',
       platformId: 'ios',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
       getResourceLockKey: () => 'ios:simulator:iPhone 17 Pro:26.2',
     };
@@ -753,7 +753,7 @@ describe('plugins', () => {
         plugins: [plugin],
       }),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     harness.setRunState({
@@ -789,6 +789,59 @@ describe('plugins', () => {
       'afterRun:1:normal',
       'beforeDispose:1:normal',
     ]);
+  });
+
+  it('disposes lifecycle hooks and platform resources only once', async () => {
+    const { serverBridge } = createBridgeServer();
+    const platformInstance = createPlatformRunner();
+    const observedHooks: string[] = [];
+
+    mocks.getBridgeServer.mockResolvedValue(serverBridge);
+    mocks.getMetroInstance.mockResolvedValue(createMetroInstance());
+
+    (
+      globalThis as typeof globalThis & {
+        __HARNESS_PLATFORM_RUNNER__?: (...args: unknown[]) => Promise<unknown>;
+      }
+    ).__HARNESS_PLATFORM_RUNNER__ = vi.fn(async () => platformInstance);
+
+    const plugin = definePlugin({
+      name: 'dispose-plugin',
+      hooks: {
+        harness: {
+          afterRun: () => {
+            observedHooks.push('afterRun');
+          },
+          beforeDispose: () => {
+            observedHooks.push('beforeDispose');
+          },
+        },
+      },
+    });
+
+    const platform: HarnessPlatform = {
+      config: {},
+      name: 'ios',
+      platformId: 'ios',
+      runner: `data:text/javascript,${encodeURIComponent(
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
+      )}`,
+      getResourceLockKey: () => 'ios:simulator:iPhone 17 Pro:26.2',
+    };
+
+    const harness = await getHarness(
+      createHarnessConfig({
+        plugins: [plugin],
+      }),
+      platform,
+      '/tmp/project',
+    );
+
+    await harness.dispose();
+    await harness.dispose();
+
+    expect(observedHooks).toEqual(['afterRun', 'beforeDispose']);
+    expect(platformInstance.dispose).toHaveBeenCalledTimes(1);
   });
 
   it('waits in queue before starting Metro and releases the lock on dispose', async () => {
@@ -828,7 +881,7 @@ describe('plugins', () => {
       name: 'ios',
       platformId: 'ios',
       runner: `data:text/javascript,${encodeURIComponent(
-        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);'
+        'export default (...args) => globalThis.__HARNESS_PLATFORM_RUNNER__(...args);',
       )}`,
       getResourceLockKey: () => resourceKey,
     };
@@ -836,13 +889,13 @@ describe('plugins', () => {
     const firstHarness = await getHarness(
       createHarnessConfig(),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     const secondHarnessPromise = getHarness(
       createHarnessConfig(),
       platform,
-      '/tmp/project'
+      '/tmp/project',
     );
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -864,7 +917,7 @@ describe('plugins', () => {
 describe('StartupStallError', () => {
   it('includes the configured timeout and attempt count', () => {
     expect(new StartupStallError(1_500, 4).message).toBe(
-      'The app did not request its Metro bundle after 4 launch attempts within 1500ms. Last Metro status: unknown.'
+      'The app did not request its Metro bundle after 4 launch attempts within 1500ms. Last Metro status: unknown.',
     );
   });
 });
