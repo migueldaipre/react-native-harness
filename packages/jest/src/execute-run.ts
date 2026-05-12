@@ -127,6 +127,7 @@ export const executeRun = async (
         }
         isFirstTest = false;
 
+        session.flushClientLogs();
         await onStart(test);
         await session.ensureAppReady(test.path);
 
@@ -140,6 +141,10 @@ export const executeRun = async (
         });
 
         applyJestResultToSummary(summary, result.jestResult);
+        const clientLogs = session.flushClientLogs();
+        if (clientLogs.length > 0) {
+          result.jestResult.console = clientLogs;
+        }
         updateRunState();
         await emitTestFileFinished({
           status: result.harnessResult.status,

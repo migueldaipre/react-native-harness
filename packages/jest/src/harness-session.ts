@@ -49,7 +49,10 @@ import { PlatformReadyTimeoutError } from './errors.js';
 import { NoRunnerSpecifiedError, RunnerNotFoundError } from './errors.js';
 import { createCrashMonitor, type CrashMonitor } from './crash-monitor.js';
 import { createHookQueue, type HookQueue } from './hook-queue.js';
-import { createClientLogListener } from './client-log-handler.js';
+import {
+  createClientLogCollector,
+  type ClientLogBuffer,
+} from './client-log-handler.js';
 import { createActionHooksPlugin } from './action-hooks.js';
 import {
   createResourceLockManager,
@@ -92,6 +95,7 @@ export type HarnessSession = {
   ensureAppReady: (testFilePath: string) => Promise<void>;
   restartApp: (testFilePath?: string) => Promise<void>;
   resetCrashState: () => void;
+  flushClientLogs: () => ClientLogBuffer;
   callHook: HarnessPluginManager<HarnessConfig, HarnessPlatform>['callHook'];
   setRunState: (state: HarnessRunState | null) => void;
   dispose: (reason?: 'normal' | 'abort' | 'error') => Promise<void>;
@@ -405,6 +409,7 @@ export const createHarnessSession = async (
     const hooks = createHookQueue();
     let currentRun: HarnessRunState | null = null;
     const getCurrentRunId = () => currentRun?.runId;
+    const clientLogCollector = createClientLogCollector();
 
     const context: HarnessContext = { platform };
 
@@ -488,7 +493,9 @@ export const createHarnessSession = async (
       }
     };
 
-    const clientLogListener = createClientLogListener();
+    const flushClientLogs = (): ClientLogBuffer => clientLogCollector.flush();
+
+    const clientLogListener = clientLogCollector.handleEvent;
 
     const onConnected = (conn: AppConnection) => {
       const runId = getCurrentRunId();
@@ -686,6 +693,7 @@ export const createHarnessSession = async (
       ensureAppReady,
       restartApp,
       resetCrashState: () => crashMonitor.reset(),
+      flushClientLogs,
       callHook: async (name, payload) => {
         await hooks.drain();
         await pluginManager.callHook(name, payload);
