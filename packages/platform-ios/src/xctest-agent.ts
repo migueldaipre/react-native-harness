@@ -27,6 +27,9 @@ const XCTEST_AGENT_SCHEME_NAME = 'HarnessXCTestAgent';
 const XCTEST_AGENT_PORT_ENV = 'HARNESS_XCTEST_AGENT_PORT';
 const XCTEST_AGENT_TARGET_BUNDLE_ID_ENV =
   'HARNESS_XCTEST_AGENT_TARGET_BUNDLE_ID';
+const XCTEST_AGENT_XCTESTRUN_FILE_ENV = 'HARNESS_IOS_XCTESTRUN_FILE';
+const XCTEST_AGENT_DERIVED_DATA_PATH_ENV =
+  'HARNESS_IOS_XCTEST_DERIVED_DATA_PATH';
 const XCTEST_AGENT_STARTUP_TIMEOUT_MS = 120_000;
 const XCTEST_AGENT_SHUTDOWN_TIMEOUT_MS = 5_000;
 const XCTEST_AGENT_STARTUP_POLL_INTERVAL_MS = 250;
@@ -101,6 +104,11 @@ type SimulatorXCTestAgentCacheContext = Omit<
   'artifactName' | 'destinationKind' | 'schemaVersion' | 'xctestrunRelativePath'
 >;
 
+type ExternalXCTestConfiguration = {
+  derivedDataPath: string;
+  xctestrunFilePath: string;
+};
+
 export type XCTestAgentController = {
   prepare: () => Promise<void>;
   ensureStarted: () => Promise<void>;
@@ -144,6 +152,51 @@ const getXCTestAgentDerivedDataPath = (
   projectRoot = process.cwd()
 ): string => {
   return path.join(getXCTestAgentBuildRoot(projectRoot), destination);
+};
+
+const getEnvironmentPath = (name: string): string | null => {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  return value;
+};
+
+const getExternalXCTestRunFilePath = (): string | null => {
+  return getEnvironmentPath(XCTEST_AGENT_XCTESTRUN_FILE_ENV);
+};
+
+const getExternalDerivedDataPath = (): string | null => {
+  return getEnvironmentPath(XCTEST_AGENT_DERIVED_DATA_PATH_ENV);
+};
+
+const assertExternalXCTestRunFileExists = (filePath: string) => {
+  if (fs.existsSync(filePath)) {
+    return;
+  }
+
+  throw new Error(
+    `Missing external XCTest run file at ${filePath}. Check ${XCTEST_AGENT_XCTESTRUN_FILE_ENV}.`
+  );
+};
+
+const getExternalXCTestConfiguration = (
+  fallbackDerivedDataPath: string
+): ExternalXCTestConfiguration | null => {
+  const xctestrunFilePath = getExternalXCTestRunFilePath();
+
+  if (!xctestrunFilePath) {
+    return null;
+  }
+
+  assertExternalXCTestRunFileExists(xctestrunFilePath);
+
+  return {
+    derivedDataPath: getExternalDerivedDataPath() ?? fallbackDerivedDataPath,
+    xctestrunFilePath,
+  };
 };
 
 const getXCTestAgentBuildManifestPath = (derivedDataPath: string): string =>
@@ -877,6 +930,7 @@ export const createXCTestAgentController = (options: {
     'xcodebuild.log'
   );
   let preparedDerivedDataPath = getXCTestAgentDerivedDataPath(target.kind);
+  let preparedXCTestRunFilePath: string | null = null;
   let prepared = false;
   let agentProcess: Subprocess | null = null;
   let agentClient: ReturnType<typeof createXCTestAgentClient> | null = null;
@@ -912,6 +966,24 @@ export const createXCTestAgentController = (options: {
       return;
     }
 
+    const externalXCTestConfiguration = getExternalXCTestConfiguration(
+      preparedDerivedDataPath
+    );
+
+    if (externalXCTestConfiguration) {
+      preparedDerivedDataPath = externalXCTestConfiguration.derivedDataPath;
+      preparedXCTestRunFilePath =
+        externalXCTestConfiguration.xctestrunFilePath;
+
+      prepared = true;
+      xctestAgentLogger.info(
+        'Using external XCTest run file for %s target: %s',
+        target.kind,
+        preparedXCTestRunFilePath
+      );
+      return;
+    }
+
     let signing: XCTestAgentBuildSigning | undefined;
 
     if (target.kind === 'device') {
@@ -924,6 +996,7 @@ export const createXCTestAgentController = (options: {
     });
 
     preparedDerivedDataPath = buildResult.derivedDataPath;
+    preparedXCTestRunFilePath = null;
     prepared = true;
   };
 
@@ -943,12 +1016,18 @@ export const createXCTestAgentController = (options: {
       target.kind
     );
     xctestAgentLogger.debug('Using XCTest agent port %d', port);
+    const xcodebuildRunInputArgs = preparedXCTestRunFilePath
+      ? ['-xctestrun', preparedXCTestRunFilePath]
+      : [
+          '-project',
+          getXCTestAgentProjectFilePath(),
+          '-scheme',
+          XCTEST_AGENT_SCHEME_NAME,
+        ];
+
     const xcodebuildArgs = [
       'test-without-building',
-      '-project',
-      getXCTestAgentProjectFilePath(),
-      '-scheme',
-      XCTEST_AGENT_SCHEME_NAME,
+      ...xcodebuildRunInputArgs,
       '-destination',
       getXCTestAgentRunDestination(target),
       '-parallel-testing-enabled',

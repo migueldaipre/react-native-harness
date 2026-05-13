@@ -75,6 +75,9 @@ const originalCwd = process.cwd();
 const simulatorRuntime = 'com.apple.CoreSimulator.SimRuntime.iOS-26-0';
 const simulatorSdkVersion = '26.0';
 const xcodeVersion = 'Xcode 26.0\nBuild version 17A123';
+const originalExternalXCTestRunFile = process.env.HARNESS_IOS_XCTESTRUN_FILE;
+const originalExternalDerivedDataPath =
+  process.env.HARNESS_IOS_XCTEST_DERIVED_DATA_PATH;
 
 const createLongRunningSubprocess = (options?: {
   ignoreSignal?: NodeJS.Signals;
@@ -230,6 +233,14 @@ describe('xctest-agent orchestration', () => {
   });
 
   afterEach(() => {
+    restoreEnvVar(
+      'HARNESS_IOS_XCTESTRUN_FILE',
+      originalExternalXCTestRunFile
+    );
+    restoreEnvVar(
+      'HARNESS_IOS_XCTEST_DERIVED_DATA_PATH',
+      originalExternalDerivedDataPath
+    );
     rmBuildRoot();
     process.chdir(originalCwd);
     fs.rmSync(tempProjectRoot, { recursive: true, force: true });
@@ -614,6 +625,44 @@ describe('xctest-agent orchestration', () => {
     expect(mocks.spawn).toHaveBeenCalledTimes(2);
   });
 
+  it('skips building when an external xctestrun file is provided', async () => {
+    const externalDerivedDataPath = path.join(tempProjectRoot, 'external-derived');
+    const externalXCTestRunFilePath = path.join(
+      tempProjectRoot,
+      'external.xctestrun'
+    );
+
+    fs.mkdirSync(externalDerivedDataPath, { recursive: true });
+    fs.writeFileSync(externalXCTestRunFilePath, 'external xctestrun');
+    process.env.HARNESS_IOS_XCTESTRUN_FILE = externalXCTestRunFilePath;
+    process.env.HARNESS_IOS_XCTEST_DERIVED_DATA_PATH = externalDerivedDataPath;
+
+    const controller = createXCTestAgentController({
+      port: 49152,
+      target: {
+        kind: 'simulator',
+        id: 'sim-123',
+      },
+    });
+
+    await controller.prepare();
+    await controller.ensureStarted();
+
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    expect(mocks.spawn).toHaveBeenNthCalledWith(
+      1,
+      'xcodebuild',
+      expect.arrayContaining([
+        'test-without-building',
+        '-xctestrun',
+        externalXCTestRunFilePath,
+        '-derivedDataPath',
+        externalDerivedDataPath,
+      ]),
+      expect.any(Object)
+    );
+  });
+
   it('fails fast when the checked-in xcode project is missing', async () => {
     const projectPath = path.join(projectRoot, 'HarnessXCTestAgent.xcodeproj');
     const hiddenProjectPath = path.join(
@@ -664,6 +713,15 @@ const rmBuildRoot = () => {
     force: true,
     recursive: true,
   });
+};
+
+const restoreEnvVar = (name: string, value: string | undefined) => {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
 };
 
 const getCurrentInputsHash = (): string => {
