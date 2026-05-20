@@ -1,12 +1,33 @@
-import type { TestSuite } from '@react-native-harness/bridge';
+import type { SuiteHookFn, TestFn, TestSuite } from '@react-native-harness/bridge';
+import type { ActiveTestContext } from './types.js';
 
 export type HookType = 'beforeEach' | 'afterEach' | 'beforeAll' | 'afterAll';
 
 const collectInheritedHooks = (
   suite: TestSuite,
-  hookType: HookType
-): (() => void | Promise<void>)[] => {
-  const hooks: (() => void | Promise<void>)[] = [];
+  hookType: 'beforeEach' | 'afterEach'
+): TestFn[] => {
+  const hooks: TestFn[] = [];
+  const suiteChain: TestSuite[] = [];
+
+  let current: TestSuite | undefined = suite;
+  while (current) {
+    suiteChain.unshift(current);
+    current = current.parent;
+  }
+
+  for (const currentSuite of suiteChain) {
+    hooks.push(...currentSuite[hookType]);
+  }
+
+  return hooks;
+};
+
+const collectSuiteHooks = (
+  suite: TestSuite,
+  hookType: 'beforeAll' | 'afterAll'
+): SuiteHookFn[] => {
+  const hooks: SuiteHookFn[] = [];
   const suiteChain: TestSuite[] = [];
 
   // Collect all suites from current to root
@@ -16,23 +37,15 @@ const collectInheritedHooks = (
     currentSuite = currentSuite.parent;
   }
 
-  if (hookType === 'beforeEach' || hookType === 'beforeAll') {
-    // For beforeEach/beforeAll: run parent hooks first (reverse the chain)
+  if (hookType === 'beforeAll') {
+    // Run parent suite hooks before child suite hooks.
     for (let i = suiteChain.length - 1; i >= 0; i--) {
-      if (hookType === 'beforeEach') {
-        hooks.push(...suiteChain[i].beforeEach);
-      } else {
-        hooks.push(...suiteChain[i].beforeAll);
-      }
+      hooks.push(...suiteChain[i].beforeAll);
     }
   } else {
-    // For afterEach/afterAll: run child hooks first (use chain as-is)
+    // Run child suite hooks before parent suite hooks.
     for (const suiteInChain of suiteChain) {
-      if (hookType === 'afterEach') {
-        hooks.push(...suiteInChain.afterEach);
-      } else {
-        hooks.push(...suiteInChain.afterAll);
-      }
+      hooks.push(...suiteInChain.afterAll);
     }
   }
 
@@ -41,11 +54,22 @@ const collectInheritedHooks = (
 
 export const runHooks = async (
   suite: TestSuite,
-  hookType: HookType
+  hookType: HookType,
+  context?: ActiveTestContext,
 ): Promise<void> => {
+  if (hookType === 'beforeAll' || hookType === 'afterAll') {
+    const hooks = collectSuiteHooks(suite, hookType);
+
+    for (const hook of hooks) {
+      await hook();
+    }
+
+    return;
+  }
+
   const hooks = collectInheritedHooks(suite, hookType);
 
   for (const hook of hooks) {
-    await hook();
+    await hook(context as ActiveTestContext);
   }
 };

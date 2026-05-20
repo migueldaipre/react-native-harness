@@ -1,4 +1,5 @@
 import type {
+  HarnessTaskContext,
   TestCase,
   TestResult,
   TestSuite,
@@ -11,7 +12,14 @@ import {
 import { flushExpectTestState } from '../expect/errors.js';
 import { runHooks } from './hooks.js';
 import { getTestExecutionError } from './errors.js';
-import { TestRunnerContext } from './types.js';
+import { ActiveTestContext, TestRunnerContext } from './types.js';
+import {
+  createTestContext,
+  createTestLifecycleState,
+  isSkipTestError,
+  runOnTestFailed,
+  runOnTestFinished,
+} from './test-context.js';
 
 declare global {
   var HARNESS_TEST_PATH: string;
@@ -23,6 +31,27 @@ const runTest = async (
   context: TestRunnerContext,
 ): Promise<TestResult> => {
   const startTime = Date.now();
+  const task: HarnessTaskContext = {
+    name: test.name,
+    type: 'test',
+    mode:
+      test.status === 'active'
+        ? 'run'
+        : test.status === 'skipped'
+          ? 'skip'
+          : 'todo',
+    file: {
+      name: context.testFilePath,
+    },
+    suite: {
+      name: suite.name,
+    },
+  };
+  const lifecycleState = createTestLifecycleState();
+  const activeTestContext: ActiveTestContext = createTestContext(
+    task,
+    lifecycleState,
+  );
 
   // Emit test-started event
   context.events.emit({
@@ -78,16 +107,50 @@ const runTest = async (
     setCurrentExpectTestState(expectTestState);
 
     try {
-      // Run all beforeEach hooks from the current suite and its parents
-      await runHooks(suite, 'beforeEach');
+      let didSkip = false;
 
-      // Run the actual test
-      await test.fn();
+      try {
+        // Run all beforeEach hooks from the current suite and its parents
+        await runHooks(suite, 'beforeEach', activeTestContext);
 
-      // Run all afterEach hooks from the current suite and its parents
-      await runHooks(suite, 'afterEach');
+        // Run the actual test
+        await test.fn(activeTestContext);
+      } catch (error) {
+        if (!isSkipTestError(error)) {
+          throw error;
+        }
+
+        didSkip = true;
+      } finally {
+        // Run all afterEach hooks from the current suite and its parents
+        await runHooks(suite, 'afterEach', activeTestContext);
+      }
+
+      if (didSkip) {
+        const duration = Date.now() - startTime;
+
+        await runOnTestFinished(lifecycleState);
+
+        const result = {
+          name: test.name,
+          status: 'skipped' as const,
+          duration,
+        };
+
+        context.events.emit({
+          type: 'test-finished',
+          file: context.testFilePath,
+          suite: suite.name,
+          name: test.name,
+          duration,
+          status: 'skipped',
+        });
+
+        return result;
+      }
 
       await flushExpectTestState(expectTestState);
+      await runOnTestFinished(lifecycleState);
     } finally {
       setCurrentExpectTestState(undefined);
     }
@@ -112,6 +175,9 @@ const runTest = async (
 
     return result;
   } catch (error) {
+    await runOnTestFailed(lifecycleState);
+    await runOnTestFinished(lifecycleState);
+
     const testError = await getTestExecutionError(
       error,
       context.testFilePath,
