@@ -5,14 +5,17 @@ export type {
   AndroidAppLaunchOptions,
   AppleAppLaunchOptions,
   AppCrashDetails,
-  AppMonitor,
-  AppMonitorEvent,
-  AppMonitorListener,
+  AppSession,
+  AppSessionEvent,
+  AppSessionListener,
+  AppSessionLog,
+  AppSessionState,
   AppLaunchOptions,
+  CrashArtifactKind,
   CrashDetailsLookupOptions,
+  CrashEnrichmentArtifact,
   CrashArtifactSource,
   CrashArtifactWriter,
-  CreateAppMonitorOptions,
   HarnessPlatform,
   HarnessPlatformInitOptions,
   CollectNativeCoverageOptions,
@@ -21,6 +24,11 @@ export type {
   VegaAppLaunchOptions,
   WebAppLaunchOptions,
 } from './types.js';
+export {
+  createAppSessionEmitter,
+  createBoundedLogBuffer,
+  createNoopAppSession,
+} from './session.js';
 export {
   AppNotInstalledError,
   DeviceNotFoundError,

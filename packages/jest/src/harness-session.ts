@@ -13,6 +13,7 @@ import {
 } from '@react-native-harness/bridge';
 import {
   type AppLaunchOptions,
+  type AppSession,
   type HarnessPlatform,
   type HarnessPlatformInitOptions,
   type HarnessPlatformRunner,
@@ -34,8 +35,8 @@ import {
   type HarnessRunSummary,
 } from '@react-native-harness/plugins';
 import {
-  logger,
   createCrashArtifactWriter,
+  logger,
   getTimeoutSignal,
   raceAbortSignals,
 } from '@react-native-harness/tools';
@@ -46,6 +47,7 @@ import {
 } from '@react-native-harness/config';
 import type { Config as JestConfig } from 'jest-runner';
 import { preRunMessage } from 'jest-util';
+import path from 'node:path';
 import { PlatformReadyTimeoutError } from './errors.js';
 import { NoRunnerSpecifiedError, RunnerNotFoundError } from './errors.js';
 import { createCrashMonitor, type CrashMonitor } from './crash-monitor.js';
@@ -76,6 +78,48 @@ import {
 const sessionLogger = logger.child('runtime');
 const defaultResourceLockManager = createResourceLockManager();
 const ignorePromiseRejection = () => undefined;
+const isBridgeDisconnectError = (error: unknown) =>
+  error instanceof Error && error.message === 'App bridge disconnected';
+const TEST_RUN_BRIDGE_STABILITY_WAIT_MS = 500;
+
+type DisconnectObservableBridge = {
+  readonly connection: AppConnection | null;
+  on: (event: 'disconnected', listener: () => void) => void;
+  off: (event: 'disconnected', listener: () => void) => void;
+};
+
+export const waitForBridgeDisconnectOrTimeout = async ({
+  bridge,
+  connection,
+  timeoutMs,
+}: {
+  bridge: DisconnectObservableBridge;
+  connection: AppConnection;
+  timeoutMs: number;
+}): Promise<boolean> => {
+  if (bridge.connection !== connection) {
+    return true;
+  }
+
+  return await new Promise<boolean>((resolve) => {
+    const onDisconnected = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      bridge.off('disconnected', onDisconnected);
+    };
+
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(bridge.connection !== connection);
+    }, timeoutMs);
+
+    bridge.on('disconnected', onDisconnected);
+  });
+};
 
 export type HarnessRunState = {
   readonly runId: string;
@@ -149,13 +193,37 @@ const withPlatformReadyTimeout = async <T>(options: {
 type AppReadyOptions = {
   metroInstance: MetroInstance;
   bridge: HarnessBridge;
-  platformInstance: HarnessPlatformRunner;
   platformId: string;
   bundleStartTimeout: number;
   readyTimeout: number;
   maxAppRestarts: number;
   crashMonitor: CrashMonitor;
-  appLaunchOptions?: AppLaunchOptions;
+  detectNativeCrashes: boolean;
+  restartAppSession: () => Promise<AppSession>;
+};
+
+export const waitForStartupCrash = async ({
+  crashMonitor,
+  detectNativeCrashes,
+  testFilePath,
+  signal,
+}: {
+  crashMonitor: CrashMonitor;
+  detectNativeCrashes: boolean;
+  testFilePath: string;
+  signal: AbortSignal;
+}) => {
+  if (!detectNativeCrashes) {
+    return await waitForAbort(signal);
+  }
+
+  const watch = crashMonitor.watch(testFilePath, 'startup');
+  watch.promise.catch(ignorePromiseRejection); // suppress unhandled-rejection when abort wins race
+  try {
+    return await Promise.race([watch.promise, waitForAbort(signal)]);
+  } finally {
+    watch.cancel();
+  }
 };
 
 const waitForAppReady = async (
@@ -165,13 +233,13 @@ const waitForAppReady = async (
   const {
     metroInstance,
     bridge,
-    platformInstance,
     platformId,
     bundleStartTimeout,
     readyTimeout,
     maxAppRestarts,
     crashMonitor,
-    appLaunchOptions,
+    detectNativeCrashes,
+    restartAppSession,
   } = base;
 
   const logWait = (message: string, ...args: unknown[]) =>
@@ -186,7 +254,7 @@ const waitForAppReady = async (
     signal: new AbortController().signal,
     startAttempt: async () => {
       logWait('launching app for %s', testFilePath);
-      await platformInstance.restartApp(appLaunchOptions);
+      await restartAppSession();
       logWait('launch request completed, waiting for bridge ready');
     },
     waitForReady: async (signal) => {
@@ -197,7 +265,7 @@ const waitForAppReady = async (
       // connection from a previous run would resolve the promise before startAttempt
       // even restarts the app — leaving bridge.connection null after the restart.
       await new Promise<void>((resolve, reject) => {
-        const onConnected = (_conn: AppConnection) => { cleanup(); resolve(); };
+        const onConnected = () => { cleanup(); resolve(); };
         const onAbort = () => { cleanup(); reject(signal.reason ?? new DOMException('Aborted', 'AbortError')); };
         const cleanup = () => {
           bridge.off('connected', onConnected);
@@ -210,14 +278,13 @@ const waitForAppReady = async (
       logWait('runtime ready received');
     },
     waitForCrash: async (signal) => {
-      const watch = crashMonitor.watch(testFilePath, 'startup');
-      watch.promise.catch(ignorePromiseRejection); // suppress unhandled-rejection when abort wins race
-      try {
-        logWait('waiting for crash or runtime ready');
-        return await Promise.race([watch.promise, waitForAbort(signal)]);
-      } finally {
-        watch.cancel();
-      }
+      logWait('waiting for crash or runtime ready');
+      return await waitForStartupCrash({
+        crashMonitor,
+        detectNativeCrashes,
+        testFilePath,
+        signal,
+      });
     },
     onAttemptStart: () => {
       logWait('beginning launch attempt for %s', testFilePath);
@@ -415,6 +482,11 @@ export const createHarnessSession = async (
     const clientLogCollector = createClientLogCollector();
 
     const context: HarnessContext = { platform };
+    const crashArtifactWriter = createCrashArtifactWriter({
+      runnerName: platform.name,
+      platformId: platform.platformId,
+      rootDir: path.join(projectRoot, '.harness', 'crash-reports'),
+    });
 
     const bridge = await createHarnessBridge({
       noServer: true,
@@ -448,6 +520,7 @@ export const createHarnessSession = async (
             return await import(platform.runner).then((module) =>
               module.default(platform.config, runtimeConfig, {
                 signal,
+                crashArtifactWriter,
               } satisfies HarnessPlatformInitOptions),
             ).then((instance) => {
               sessionLogger.debug('platform runner initialized');
@@ -462,27 +535,42 @@ export const createHarnessSession = async (
       throw error;
     }
 
-    const crashArtifactWriter = createCrashArtifactWriter({
-      runnerName: platform.name,
-      platformId: platform.platformId,
-    });
-    const appMonitor = platformInstance.createAppMonitor({ crashArtifactWriter });
     const appLaunchOptions = (platform.config as { appLaunchOptions?: AppLaunchOptions }).appLaunchOptions;
 
-    const crashMonitor = createCrashMonitor({ appMonitor, platformRunner: platformInstance });
+    let currentAppSession: AppSession | null = null;
+    const crashMonitor = createCrashMonitor();
+
+    const disposeCurrentAppSession = async () => {
+      const session = currentAppSession;
+      currentAppSession = null;
+      crashMonitor.setAppSession(null);
+      if (session) {
+        await session.dispose();
+      }
+    };
+
+    const restartAppSession = async (): Promise<AppSession> => {
+      await crashMonitor.stop();
+      await disposeCurrentAppSession();
+      const session = await platformInstance.createAppSession(appLaunchOptions);
+      currentAppSession = session;
+      crashMonitor.setAppSession(session);
+      await crashMonitor.start();
+      return session;
+    };
 
     // Pre-build the options that are constant across all app-ready calls;
     // only testFilePath varies per call.
     const appReadyBaseOptions: AppReadyOptions = {
       metroInstance,
       bridge,
-      platformInstance,
       platformId: platform.platformId,
       bundleStartTimeout: runtimeConfig.bundleStartTimeout ?? 60000,
       readyTimeout: runtimeConfig.bridgeTimeout,
       maxAppRestarts: runtimeConfig.maxAppRestarts ?? 2,
       crashMonitor,
-      appLaunchOptions,
+      detectNativeCrashes: runtimeConfig.detectNativeCrashes !== false,
+      restartAppSession,
     };
 
     // --- Event listeners ---
@@ -523,6 +611,9 @@ export const createHarnessSession = async (
       const runId = getCurrentRunId();
       if (!runId) return;
       hooks.schedule(() => pluginManager.callHook('runtime:disconnected', { runId, reason: 'bridge-disconnected' }));
+      if (runtimeConfig.detectNativeCrashes !== false) {
+        crashMonitor.handleBridgeDisconnect();
+      }
     };
 
     bridge.on('connected', onConnected);
@@ -578,7 +669,8 @@ export const createHarnessSession = async (
       const nativeCoverageConfig = runtimeConfig.coverage?.native?.ios;
       if (nativeCoverageConfig?.pods?.length && platformInstance.collectNativeCoverage) {
         try {
-          await platformInstance.stopApp();
+          await crashMonitor.stop();
+          await disposeCurrentAppSession();
           const lcovPath = await platformInstance.collectNativeCoverage({
             pods: nativeCoverageConfig.pods,
             outputDir: projectRoot,
@@ -595,6 +687,7 @@ export const createHarnessSession = async (
       try {
         await Promise.all([
           crashMonitor.dispose(),
+          disposeCurrentAppSession(),
           bridge.dispose(),
           platformInstance.dispose(),
           metroInstance.dispose(),
@@ -631,8 +724,6 @@ export const createHarnessSession = async (
     try {
       await pluginManager.callHook('harness:before-creation', { appLaunchOptions });
       await hooks.drain();
-      await appMonitor.start();
-      sessionLogger.debug('app monitor started');
       await pluginManager.callHook('harness:before-run', { appLaunchOptions });
       await hooks.drain();
     } catch (error) {
@@ -651,9 +742,12 @@ export const createHarnessSession = async (
       await hooks.drain();
       sessionLogger.debug('ensuring app is ready for %s', testFilePath);
 
-      if (crashMonitor.isAlive() && bridge.connection !== null && await platformInstance.isAppRunning()) {
-        sessionLogger.debug('reusing existing ready app for %s', testFilePath);
-        return;
+      if (crashMonitor.isAlive() && bridge.connection !== null && currentAppSession) {
+        const state = await currentAppSession.getState();
+        if (state.status === 'running') {
+          sessionLogger.debug('reusing existing ready app for %s', testFilePath);
+          return;
+        }
       }
 
       crashMonitor.reset();
@@ -672,17 +766,16 @@ export const createHarnessSession = async (
         testFilePath ? 'stop-and-ensure-ready' : 'direct-restart',
       );
 
-      if (testFilePath) {
-        await platformInstance.stopApp();
-      } else {
-        await platformInstance.restartApp(appLaunchOptions);
-      }
-
-      crashMonitor.reset();
-      await crashMonitor.start();
+      await disposeCurrentAppSession();
 
       if (testFilePath) {
         await ensureAppReady(testFilePath);
+      } else {
+        const session = await platformInstance.createAppSession(appLaunchOptions);
+        currentAppSession = session;
+        crashMonitor.setAppSession(session);
+        crashMonitor.reset();
+        await crashMonitor.start();
       }
 
       await hooks.drain();
@@ -698,7 +791,7 @@ export const createHarnessSession = async (
       if (!conn) throw new Error('No active app connection');
       sessionLogger.debug('running test file on client: %s', testPath);
 
-      if (!runtimeConfig.detectNativeCrashes) {
+      if (runtimeConfig.detectNativeCrashes === false) {
         const result = await conn.runTests(testPath, { ...options, runner: platform.runner });
         await hooks.drain();
         return result;
@@ -709,12 +802,31 @@ export const createHarnessSession = async (
       // crash wins the race or cancel() is called after the test run wins.
       crashWatch.promise.catch(ignorePromiseRejection);
       try {
-        const result = await Promise.race([
-          conn.runTests(testPath, { ...options, runner: platform.runner }),
-          crashWatch.promise,
-        ]);
+        const testRunPromise = conn.runTests(testPath, {
+          ...options,
+          runner: platform.runner,
+        });
+        const result = await Promise.race([testRunPromise, crashWatch.promise]);
+        const bridgeDisconnected = await waitForBridgeDisconnectOrTimeout({
+          bridge,
+          connection: conn,
+          timeoutMs: TEST_RUN_BRIDGE_STABILITY_WAIT_MS,
+        });
+
+        if (bridgeDisconnected) {
+          return await crashWatch.promise;
+        }
+
         await hooks.drain();
         return result;
+      } catch (error) {
+        if (isBridgeDisconnectError(error)) {
+          const result = await crashWatch.promise;
+          await hooks.drain();
+          return result;
+        }
+
+        throw error;
       } finally {
         crashWatch.cancel();
       }

@@ -1,8 +1,6 @@
 import {
-  AppMonitor,
   AppNotInstalledError,
   type CollectNativeCoverageOptions,
-  CreateAppMonitorOptions,
   DeviceNotFoundError,
   type HarnessPlatformInitOptions,
   HarnessPlatformRunner,
@@ -19,16 +17,20 @@ import {
 import * as simctl from './xcrun/simctl.js';
 import * as devicectl from './xcrun/devicectl.js';
 import { getDeviceName } from './utils.js';
-import {
-  createIosDeviceAppMonitor,
-  createIosSimulatorAppMonitor,
-} from './app-monitor.js';
 import { HarnessAppPathError } from './errors.js';
 import { logger } from '@react-native-harness/tools';
 import fs from 'node:fs';
 import { createXCTestAgentController } from './xctest-agent.js';
 import { createPermissionPromptAutoAcceptCapability } from './xctest-agent-capabilities.js';
-import { collectNativeCoverage, cleanProfrawDir } from './coverage-collector.js';
+import {
+  collectNativeCoverage,
+  cleanProfrawDir,
+} from './coverage-collector.js';
+import { createIosAppSession } from './app-session.js';
+import {
+  createIosCrashReporter,
+  getIosProcessNames,
+} from './crash-reporter.js';
 
 const iosInstanceLogger = logger.child('ios-instance');
 
@@ -46,21 +48,12 @@ const getHarnessAppPath = (): string => {
   return appPath;
 };
 
-const createNoopAppMonitor = (): AppMonitor => ({
-  start: async () => undefined,
-  stop: async () => undefined,
-  dispose: async () => undefined,
-  addListener: () => undefined,
-  removeListener: () => undefined,
-});
-
 export const getAppleSimulatorPlatformInstance = async (
   config: ApplePlatformConfig,
   harnessConfig: HarnessConfig,
-  init: HarnessPlatformInitOptions,
+  init: HarnessPlatformInitOptions
 ): Promise<HarnessPlatformRunner> => {
   assertAppleDeviceSimulator(config.device);
-  const detectNativeCrashes = harnessConfig.detectNativeCrashes ?? true;
   const permissionsEnabled = harnessConfig.permissions ?? false;
 
   if (harnessConfig.coverage?.native?.ios?.pods?.length) {
@@ -69,7 +62,7 @@ export const getAppleSimulatorPlatformInstance = async (
 
   const udid = await simctl.getSimulatorId(
     config.device.name,
-    config.device.systemVersion,
+    config.device.systemVersion
   );
 
   if (!udid) {
@@ -82,7 +75,7 @@ export const getAppleSimulatorPlatformInstance = async (
   iosInstanceLogger.debug(
     'resolved iOS simulator %s with status %s',
     udid,
-    simulatorStatus,
+    simulatorStatus
   );
 
   if (
@@ -93,7 +86,7 @@ export const getAppleSimulatorPlatformInstance = async (
     iosInstanceLogger.debug(
       'booting iOS simulator %s from status %s',
       udid,
-      simulatorStatus,
+      simulatorStatus
     );
     await simctl.bootSimulator(udid);
     startedByHarness = true;
@@ -104,14 +97,14 @@ export const getAppleSimulatorPlatformInstance = async (
   } else if (simctl.isBootingSimulatorStatus(simulatorStatus)) {
     logger.info(
       'Waiting for iOS simulator %s to finish booting...',
-      config.device.name,
+      config.device.name
     );
   }
 
   if (!simctl.isBootedSimulatorStatus(simulatorStatus)) {
     iosInstanceLogger.debug(
       'waiting for iOS simulator %s to finish booting',
-      udid,
+      udid
     );
     await simctl.waitForBoot(udid, init.signal);
   }
@@ -126,7 +119,7 @@ export const getAppleSimulatorPlatformInstance = async (
   await simctl.applyHarnessJsLocationOverride(
     udid,
     config.bundleId,
-    `localhost:${harnessConfig.metroPort}`,
+    `localhost:${harnessConfig.metroPort}`
   );
 
   const xctestAgent = permissionsEnabled
@@ -155,25 +148,34 @@ export const getAppleSimulatorPlatformInstance = async (
   }
 
   return {
-    startApp: async (options) => {
-      await simctl.startApp(
-        udid,
-        config.bundleId,
-        (options as typeof config.appLaunchOptions | undefined) ??
-          config.appLaunchOptions,
-      );
-    },
-    restartApp: async (options) => {
+    createAppSession: async (options) => {
       await simctl.stopApp(udid, config.bundleId);
-      await simctl.startApp(
-        udid,
-        config.bundleId,
+      const launchOptions =
         (options as typeof config.appLaunchOptions | undefined) ??
-          config.appLaunchOptions,
+        config.appLaunchOptions;
+      const appInfo = await simctl.getAppInfo(udid, config.bundleId);
+      const processNames = getIosProcessNames(
+        appInfo?.CFBundleExecutable,
+        appInfo?.CFBundleName,
+        appInfo?.CFBundleDisplayName,
+        config.bundleId
       );
-    },
-    stopApp: async () => {
-      await simctl.stopApp(udid, config.bundleId);
+      const crashReporter = createIosCrashReporter({
+        targetId: udid,
+        targetType: 'simulator',
+        bundleId: config.bundleId,
+        processNames,
+        minOccurredAt: Date.now(),
+        crashArtifactWriter: init.crashArtifactWriter,
+      });
+
+      return await createIosAppSession({
+        launch: () =>
+          simctl.launchAppProcess(udid, config.bundleId, launchOptions),
+        stopApp: () => simctl.stopApp(udid, config.bundleId),
+        isAppRunning: () => simctl.isAppRunning(udid, config.bundleId),
+        crashReporter,
+      });
     },
     dispose: async () => {
       await xctestAgent?.dispose();
@@ -184,20 +186,6 @@ export const getAppleSimulatorPlatformInstance = async (
         logger.info('Shutting down iOS simulator %s...', config.device.name);
         await simctl.shutdownSimulator(udid);
       }
-    },
-    isAppRunning: async () => {
-      return await simctl.isAppRunning(udid, config.bundleId);
-    },
-    createAppMonitor: (options?: CreateAppMonitorOptions) => {
-      if (!detectNativeCrashes) {
-        return createNoopAppMonitor();
-      }
-
-      return createIosSimulatorAppMonitor({
-        udid,
-        bundleId: config.bundleId,
-        crashArtifactWriter: options?.crashArtifactWriter,
-      });
     },
     collectNativeCoverage: async (options: CollectNativeCoverageOptions) => {
       return await collectNativeCoverage({
@@ -213,14 +201,14 @@ export const getAppleSimulatorPlatformInstance = async (
 export const getApplePhysicalDevicePlatformInstance = async (
   config: ApplePlatformConfig,
   harnessConfig: HarnessConfig,
+  init?: HarnessPlatformInitOptions
 ): Promise<HarnessPlatformRunner> => {
   assertAppleDevicePhysical(config.device);
-  const detectNativeCrashes = harnessConfig.detectNativeCrashes ?? true;
   const permissionsEnabled = harnessConfig.permissions ?? false;
 
   if (harnessConfig.metroPort !== DEFAULT_METRO_PORT) {
     throw new Error(
-      `Custom Metro port ${harnessConfig.metroPort} is not supported on physical iOS devices. Physical devices always connect to port ${DEFAULT_METRO_PORT}.`,
+      `Custom Metro port ${harnessConfig.metroPort} is not supported on physical iOS devices. Physical devices always connect to port ${DEFAULT_METRO_PORT}.`
     );
   }
 
@@ -237,21 +225,22 @@ export const getApplePhysicalDevicePlatformInstance = async (
   if (!isAvailable) {
     throw new AppNotInstalledError(
       config.bundleId,
-      getDeviceName(config.device),
+      getDeviceName(config.device)
     );
   }
 
-  const xctestAgent = permissionsEnabled && config.device.codeSign
-    ? createXCTestAgentController({
-        appBundleId: config.bundleId,
-        target: {
-          kind: 'device',
-          id: device.hardwareProperties.udid,
-          codeSign: config.device.codeSign,
-        },
-        capabilities: [createPermissionPromptAutoAcceptCapability()],
-      })
-    : null;
+  const xctestAgent =
+    permissionsEnabled && config.device.codeSign
+      ? createXCTestAgentController({
+          appBundleId: config.bundleId,
+          target: {
+            kind: 'device',
+            id: device.hardwareProperties.udid,
+            codeSign: config.device.codeSign,
+          },
+          capabilities: [createPermissionPromptAutoAcceptCapability()],
+        })
+      : null;
 
   if (xctestAgent) {
     let agentStarted = false;
@@ -265,48 +254,38 @@ export const getApplePhysicalDevicePlatformInstance = async (
     }
   } else if (permissionsEnabled) {
     iosInstanceLogger.info(
-      'Skipping XCTest agent for physical device (no codeSign config provided)',
+      'Skipping XCTest agent for physical device (no codeSign config provided)'
     );
   }
 
   return {
-    startApp: async (options) => {
-      await devicectl.startApp(
-        deviceId,
-        config.bundleId,
-        (options as typeof config.appLaunchOptions | undefined) ??
-          config.appLaunchOptions,
-      );
-    },
-    restartApp: async (options) => {
+    createAppSession: async (options) => {
       await devicectl.stopApp(deviceId, config.bundleId);
-      await devicectl.startApp(
-        deviceId,
-        config.bundleId,
+      const launchOptions =
         (options as typeof config.appLaunchOptions | undefined) ??
-          config.appLaunchOptions,
-      );
-    },
-    stopApp: async () => {
-      await devicectl.stopApp(deviceId, config.bundleId);
+        config.appLaunchOptions;
+      const appInfo = await devicectl.getAppInfo(deviceId, config.bundleId);
+      const processNames = getIosProcessNames(appInfo?.name, config.bundleId);
+      const crashReporter = createIosCrashReporter({
+        targetId: deviceId,
+        targetType: 'device',
+        bundleId: config.bundleId,
+        processNames,
+        minOccurredAt: Date.now(),
+        crashArtifactWriter: init?.crashArtifactWriter,
+      });
+
+      return await createIosAppSession({
+        launch: () =>
+          devicectl.launchAppProcess(deviceId, config.bundleId, launchOptions),
+        stopApp: () => devicectl.stopApp(deviceId, config.bundleId),
+        isAppRunning: () => devicectl.isAppRunning(deviceId, config.bundleId),
+        crashReporter,
+      });
     },
     dispose: async () => {
       await xctestAgent?.dispose();
       await devicectl.stopApp(deviceId, config.bundleId);
-    },
-    isAppRunning: async () => {
-      return await devicectl.isAppRunning(deviceId, config.bundleId);
-    },
-    createAppMonitor: (options?: CreateAppMonitorOptions) => {
-      if (!detectNativeCrashes) {
-        return createNoopAppMonitor();
-      }
-
-      return createIosDeviceAppMonitor({
-        deviceId,
-        bundleId: config.bundleId,
-        crashArtifactWriter: options?.crashArtifactWriter,
-      });
     },
   };
 };

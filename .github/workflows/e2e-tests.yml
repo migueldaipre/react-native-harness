@@ -344,7 +344,7 @@ jobs:
           app: android/app/build/outputs/apk/debug/app-debug.apk
           runner: android-crash-pre-rn
           projectRoot: apps/playground
-          harnessArgs: --testPathPatterns smoke
+          harnessArgs: '--config jest.harness.crash.config.mjs --testPathPatterns src/__tests__/crash/android'
           preRunHook: |
             echo "HARNESS_PROJECT_ROOT=$HARNESS_PROJECT_ROOT"
             echo "HARNESS_RUNNER=$HARNESS_RUNNER"
@@ -365,13 +365,20 @@ jobs:
         shell: bash
         run: |
           CRASH_DIR="apps/playground/.harness/crash-reports"
-          if [ -d "$CRASH_DIR" ] && [ "$(ls -A "$CRASH_DIR" 2>/dev/null)" ]; then
-            echo "Crash report artifacts found:"
-            ls -la "$CRASH_DIR"
-          else
-            echo "ERROR: No crash report artifacts found in $CRASH_DIR"
+          if [ ! -d "$CRASH_DIR" ]; then
+            echo "ERROR: No crash report directory found at $CRASH_DIR"
             exit 1
           fi
+
+          ARTIFACT_COUNT="$(find "$CRASH_DIR" -mindepth 4 -type f | wc -l | tr -d ' ')"
+          if [ "$ARTIFACT_COUNT" -eq 0 ]; then
+            echo "ERROR: No nested crash report artifacts found in $CRASH_DIR"
+            find "$CRASH_DIR" -maxdepth 4 -print
+            exit 1
+          fi
+
+          echo "Crash report artifacts found:"
+          find "$CRASH_DIR" -mindepth 4 -type f -print
 
       - name: Upload Harness logs
         if: always()
@@ -469,7 +476,7 @@ jobs:
           app: ios/build/Build/Products/Debug-iphonesimulator/HarnessPlayground.app
           runner: ios-crash-pre-rn
           projectRoot: apps/playground
-          harnessArgs: --testPathPatterns smoke
+          harnessArgs: '--config jest.harness.crash.config.mjs --testPathPatterns src/__tests__/crash/ios'
           preRunHook: |
             echo "HARNESS_PROJECT_ROOT=$HARNESS_PROJECT_ROOT"
             echo "HARNESS_RUNNER=$HARNESS_RUNNER"
@@ -490,13 +497,20 @@ jobs:
         shell: bash
         run: |
           CRASH_DIR="apps/playground/.harness/crash-reports"
-          if [ -d "$CRASH_DIR" ] && [ "$(ls -A "$CRASH_DIR" 2>/dev/null)" ]; then
-            echo "Crash report artifacts found:"
-            ls -la "$CRASH_DIR"
-          else
-            echo "ERROR: No crash report artifacts found in $CRASH_DIR"
+          if [ ! -d "$CRASH_DIR" ]; then
+            echo "ERROR: No crash report directory found at $CRASH_DIR"
             exit 1
           fi
+
+          ARTIFACT_COUNT="$(find "$CRASH_DIR" -mindepth 4 -type f | wc -l | tr -d ' ')"
+          if [ "$ARTIFACT_COUNT" -eq 0 ]; then
+            echo "ERROR: No nested crash report artifacts found in $CRASH_DIR"
+            find "$CRASH_DIR" -maxdepth 4 -print
+            exit 1
+          fi
+
+          echo "Crash report artifacts found:"
+          find "$CRASH_DIR" -mindepth 4 -type f -print
 
       - name: Upload Harness logs
         if: always()

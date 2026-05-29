@@ -17,14 +17,10 @@ const formatRunTimestamp = (value: Date) =>
   value.toISOString().replace(/[:.]/g, '-');
 
 const getTargetFileName = ({
-  runTimestamp,
-  runnerName,
   platformId,
   artifactKind,
   source,
 }: {
-  runTimestamp: string;
-  runnerName: string;
   platformId: string;
   artifactKind: string;
   source:
@@ -41,21 +37,40 @@ const getTargetFileName = ({
     source.kind === 'file' ? path.basename(source.path) : source.fileName;
 
   return [
-    sanitizePathSegment(runTimestamp),
-    sanitizePathSegment(runnerName),
     sanitizePathSegment(platformId),
     sanitizePathSegment(artifactKind),
     sanitizePathSegment(originalName),
   ].join('--');
 };
 
+const getTestFileSegment = (testFilePath?: string) => {
+  if (!testFilePath) {
+    return 'unscoped';
+  }
+
+  const resolvedTestFilePath = path.resolve(testFilePath);
+  const relativeTestFilePath = path.relative(
+    process.cwd(),
+    resolvedTestFilePath
+  );
+
+  return sanitizePathSegment(
+    relativeTestFilePath.startsWith('..') ||
+      path.isAbsolute(relativeTestFilePath)
+      ? resolvedTestFilePath
+      : relativeTestFilePath
+  );
+};
+
 const getDeduplicationKey = ({
   platformId,
   artifactKind,
+  testFilePath,
   source,
 }: {
   platformId: string;
   artifactKind: string;
+  testFilePath?: string;
   source:
     | {
         kind: 'file';
@@ -68,10 +83,14 @@ const getDeduplicationKey = ({
       };
 }) => {
   if (source.kind === 'file') {
-    return `file:${platformId}:${artifactKind}:${path.resolve(source.path)}`;
+    return `file:${platformId}:${artifactKind}:${
+      testFilePath ?? ''
+    }:${path.resolve(source.path)}`;
   }
 
-  return `text:${platformId}:${artifactKind}:${source.fileName}:${source.text}`;
+  return `text:${platformId}:${artifactKind}:${testFilePath ?? ''}:${
+    source.fileName
+  }:${source.text}`;
 };
 
 export const createCrashArtifactWriter = ({
@@ -91,6 +110,7 @@ export const createCrashArtifactWriter = ({
     runTimestamp,
     persistArtifact: (options: {
       artifactKind: string;
+      testFilePath?: string;
       source:
         | {
             kind: 'file';
@@ -105,6 +125,7 @@ export const createCrashArtifactWriter = ({
       const deduplicationKey = getDeduplicationKey({
         platformId,
         artifactKind: options.artifactKind,
+        testFilePath: options.testFilePath,
         source: options.source,
       });
       const existingPath = persistedArtifacts.get(deduplicationKey);
@@ -115,16 +136,22 @@ export const createCrashArtifactWriter = ({
 
       fs.mkdirSync(rootDir, { recursive: true });
 
-      const targetPath = path.join(
+      const targetDir = path.join(
         rootDir,
+        sanitizePathSegment(runTimestamp),
+        sanitizePathSegment(runnerName),
+        getTestFileSegment(options.testFilePath)
+      );
+      const targetPath = path.join(
+        targetDir,
         getTargetFileName({
-          runTimestamp,
-          runnerName,
           platformId,
           artifactKind: options.artifactKind,
           source: options.source,
         })
       );
+
+      fs.mkdirSync(targetDir, { recursive: true });
 
       if (options.source.kind === 'file') {
         fs.copyFileSync(options.source.path, targetPath);

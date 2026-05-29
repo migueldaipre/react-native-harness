@@ -3,6 +3,7 @@ import {
   DEFAULT_METRO_PORT,
   type Config as HarnessConfig,
 } from '@react-native-harness/config';
+import type { Subprocess } from '@react-native-harness/tools';
 import {
   getAndroidEmulatorPlatformInstance,
   getAndroidPhysicalDevicePlatformInstance,
@@ -11,6 +12,21 @@ import * as adb from '../adb.js';
 import * as avdConfig from '../avd-config.js';
 import * as sharedPrefs from '../shared-prefs.js';
 import { HarnessAppPathError, HarnessEmulatorConfigError } from '../errors.js';
+
+const createLogcatProcess = (lines: string[] = []): Subprocess => {
+  const process = {
+    nodeChildProcess: Promise.resolve({
+      kill: vi.fn(),
+    }),
+    [Symbol.asyncIterator]: async function* () {
+      for (const line of lines) {
+        yield line;
+      }
+    },
+  };
+
+  return process as unknown as Subprocess;
+};
 
 const harnessConfig = {
   metroPort: DEFAULT_METRO_PORT,
@@ -27,6 +43,7 @@ describe('Android platform instance', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    vi.useRealTimers();
     vi.spyOn(
       await import('../environment.js'),
       'ensureAndroidEmulatorAvailable',
@@ -47,6 +64,9 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
@@ -98,6 +118,9 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
@@ -159,6 +182,9 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
@@ -215,6 +241,9 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
@@ -276,6 +305,9 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
@@ -343,6 +375,9 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
@@ -466,7 +501,8 @@ describe('Android platform instance', () => {
     ).rejects.toBeInstanceOf(HarnessEmulatorConfigError);
   });
 
-  it('returns a noop emulator app monitor when native crash detection is disabled', async () => {
+  it('creates a real emulator app session when native crash detection is disabled', async () => {
+    vi.useFakeTimers();
     vi.spyOn(
       await import('../environment.js'),
       'ensureAndroidEmulatorEnvironment',
@@ -478,9 +514,18 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
+    const stopApp = vi.spyOn(adb, 'stopApp').mockResolvedValue(undefined);
+    const startApp = vi.spyOn(adb, 'startApp').mockResolvedValue(undefined);
+    const getAppPid = vi.spyOn(adb, 'getAppPid').mockResolvedValue(4321);
+    const startLogcat = vi
+      .spyOn(adb, 'startLogcat')
+      .mockReturnValue(createLogcatProcess());
 
     const instance = await getAndroidEmulatorPlatformInstance(
       {
@@ -503,16 +548,107 @@ describe('Android platform instance', () => {
     );
 
     const listener = vi.fn();
-    const appMonitor = instance.createAppMonitor();
+    const appSession = await instance.createAppSession();
+    appSession.addListener(listener);
+    await vi.advanceTimersByTimeAsync(0);
 
-    await expect(appMonitor.start()).resolves.toBeUndefined();
-    await expect(appMonitor.stop()).resolves.toBeUndefined();
-    await expect(appMonitor.dispose()).resolves.toBeUndefined();
-    expect(appMonitor.addListener(listener)).toBeUndefined();
-    expect(appMonitor.removeListener(listener)).toBeUndefined();
+    expect(startLogcat).toHaveBeenCalledWith('emulator-5554', [
+      'logcat',
+      '-v',
+      'threadtime',
+      '-b',
+      'crash',
+      '--uid=10234',
+      '-T',
+      '01-01 00:00:00.000',
+    ]);
+    expect(startLogcat.mock.invocationCallOrder[0]).toBeLessThan(
+      startApp.mock.invocationCallOrder[0],
+    );
+    await expect(appSession.getState()).resolves.toEqual({
+      status: 'running',
+      pid: 4321,
+    });
+    expect(getAppPid).toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+    expect(appSession.removeListener(listener)).toBeUndefined();
+    await expect(appSession.dispose()).resolves.toBeUndefined();
+    expect(stopApp).toHaveBeenCalled();
   });
 
-  it('returns a noop physical device app monitor when native crash detection is disabled', async () => {
+  it('reports an early Android crash from logcat before a PID poll succeeds', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(
+      await import('../environment.js'),
+      'ensureAndroidEmulatorEnvironment',
+    ).mockResolvedValue('/tmp/android-sdk');
+    vi.spyOn(adb, 'getDeviceIds').mockResolvedValue(['emulator-5554']);
+    vi.spyOn(adb, 'getEmulatorName').mockResolvedValue('Pixel_8_API_35');
+    vi.spyOn(adb, 'waitForBoot').mockResolvedValue('emulator-5554');
+    vi.spyOn(adb, 'isAppInstalled').mockResolvedValue(true);
+    vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
+    vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
+    vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
+    vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
+      undefined,
+    );
+    vi.spyOn(adb, 'stopApp').mockResolvedValue(undefined);
+    vi.spyOn(adb, 'startApp').mockResolvedValue(undefined);
+    vi.spyOn(adb, 'getAppPid').mockResolvedValue(null);
+    vi.spyOn(adb, 'startLogcat').mockReturnValue(
+      createLogcatProcess([
+        '--------- beginning of crash',
+        'Process: com.harnessplayground, PID: 7777',
+        'FATAL EXCEPTION: main',
+      ]),
+    );
+
+    const instance = await getAndroidEmulatorPlatformInstance(
+      {
+        name: 'android',
+        device: {
+          type: 'emulator',
+          name: 'Pixel_8_API_35',
+          avd: {
+            apiLevel: 35,
+            profile: 'pixel_8',
+            diskSize: '1G',
+            heapSize: '1G',
+          },
+        },
+        bundleId: 'com.harnessplayground',
+        activityName: '.MainActivity',
+      },
+      harnessConfig,
+      init,
+    );
+
+    const listener = vi.fn();
+    const appSession = await instance.createAppSession();
+    appSession.addListener(listener);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(appSession.getLogs().map((entry) => entry.line)).toEqual([
+      '--------- beginning of crash',
+      'Process: com.harnessplayground, PID: 7777',
+      'FATAL EXCEPTION: main',
+    ]);
+    await expect(appSession.getState()).resolves.toMatchObject({
+      status: 'exited',
+      pid: 7777,
+      reason: 'observed-exit',
+    });
+    expect(listener).toHaveBeenCalledWith({ type: 'app_exited' });
+
+    await appSession.dispose();
+  });
+
+  it('creates a real physical-device app session when native crash detection is disabled', async () => {
+    vi.useFakeTimers();
     vi.spyOn(adb, 'getDeviceIds').mockResolvedValue(['012345']);
     vi.spyOn(adb, 'getDeviceInfo').mockResolvedValue({
       manufacturer: 'motorola',
@@ -522,25 +658,18 @@ describe('Android platform instance', () => {
     vi.spyOn(adb, 'reversePort').mockResolvedValue(undefined);
     vi.spyOn(adb, 'setHideErrorDialogs').mockResolvedValue(undefined);
     vi.spyOn(adb, 'getAppUid').mockResolvedValue(10234);
+    vi.spyOn(adb, 'getLogcatTimestamp').mockResolvedValue(
+      '01-01 00:00:00.000',
+    );
     vi.spyOn(sharedPrefs, 'applyHarnessDebugHttpHost').mockResolvedValue(
       undefined,
     );
-
-    await expect(
-      getAndroidPhysicalDevicePlatformInstance(
-        {
-          name: 'android-device',
-          device: {
-            type: 'physical',
-            manufacturer: 'motorola',
-            model: 'moto g72',
-          },
-          bundleId: 'com.harnessplayground',
-          activityName: '.MainActivity',
-        },
-        harnessConfigWithoutNativeCrashDetection,
-      ),
-    ).resolves.toBeDefined();
+    vi.spyOn(adb, 'stopApp').mockResolvedValue(undefined);
+    vi.spyOn(adb, 'startApp').mockResolvedValue(undefined);
+    vi.spyOn(adb, 'getAppPid').mockResolvedValue(8765);
+    const startLogcat = vi
+      .spyOn(adb, 'startLogcat')
+      .mockReturnValue(createLogcatProcess());
 
     const instance = await getAndroidPhysicalDevicePlatformInstance(
       {
@@ -557,13 +686,27 @@ describe('Android platform instance', () => {
     );
 
     const listener = vi.fn();
-    const appMonitor = instance.createAppMonitor();
+    const appSession = await instance.createAppSession();
+    appSession.addListener(listener);
+    await vi.advanceTimersByTimeAsync(0);
 
-    await expect(appMonitor.start()).resolves.toBeUndefined();
-    await expect(appMonitor.stop()).resolves.toBeUndefined();
-    await expect(appMonitor.dispose()).resolves.toBeUndefined();
-    expect(appMonitor.addListener(listener)).toBeUndefined();
-    expect(appMonitor.removeListener(listener)).toBeUndefined();
+    expect(startLogcat).toHaveBeenCalledWith('012345', [
+      'logcat',
+      '-v',
+      'threadtime',
+      '-b',
+      'crash',
+      '--uid=10234',
+      '-T',
+      '01-01 00:00:00.000',
+    ]);
+    await expect(appSession.getState()).resolves.toEqual({
+      status: 'running',
+      pid: 8765,
+    });
+    expect(listener).not.toHaveBeenCalled();
+    expect(appSession.removeListener(listener)).toBeUndefined();
+    await expect(appSession.dispose()).resolves.toBeUndefined();
   });
 
   it('grants permissions when permissions are enabled for emulator', async () => {

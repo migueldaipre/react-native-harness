@@ -1,3 +1,18 @@
+export type CrashArtifactKind =
+  | 'logcat'
+  | 'ios-crash-report'
+  | 'dropbox-crash'
+  | 'dropbox-native-crash'
+  | 'exit-info';
+
+export type CrashEnrichmentArtifact = {
+  artifactType: Exclude<
+    CrashArtifactKind,
+    'logcat' | 'ios-crash-report'
+  >;
+  artifactPath: string;
+};
+
 export type AppCrashDetails = {
   source?: 'polling' | 'logs' | 'bridge';
   summary?: string;
@@ -7,8 +22,9 @@ export type AppCrashDetails = {
   pid?: number;
   stackTrace?: string[];
   rawLines?: string[];
-  artifactType?: 'logcat' | 'ios-crash-report';
+  artifactType?: CrashArtifactKind;
   artifactPath?: string;
+  enrichmentArtifacts?: CrashEnrichmentArtifact[];
 };
 
 export type CrashArtifactSource =
@@ -27,56 +43,51 @@ export type CrashArtifactWriter = {
   persistArtifact: (options: {
     artifactKind: string;
     source: CrashArtifactSource;
+    testFilePath?: string;
   }) => string;
-};
-
-export type CreateAppMonitorOptions = {
-  crashArtifactWriter?: CrashArtifactWriter;
 };
 
 export type CrashDetailsLookupOptions = {
   processName?: string;
   pid?: number;
   occurredAt: number;
+  testFilePath?: string;
 };
 
-export type AppMonitorEvent =
+export type AppSessionLog = {
+  line: string;
+  occurredAt: number;
+};
+
+export type AppSessionEvent = { type: 'app_exited' };
+
+export type AppSessionListener = (event: AppSessionEvent) => void;
+
+export type AppSessionState =
   | {
-      type: 'app_started';
+      status: 'running';
       pid?: number;
-      source?: 'polling' | 'logs';
-      line?: string;
     }
   | {
-      type: 'app_exited';
+      status: 'exited';
+      occurredAt: number;
       pid?: number;
-      source?: 'polling' | 'logs';
-      line?: string;
-      isConfirmed?: boolean;
-      crashDetails?: AppCrashDetails;
+      reason?: 'observed-exit' | 'process-gone';
     }
   | {
-      type: 'possible_crash';
-      pid?: number;
-      source?: 'polling' | 'logs';
-      line?: string;
-      isConfirmed?: boolean;
-      crashDetails?: AppCrashDetails;
-    }
-  | {
-      type: 'log';
-      source?: 'polling' | 'logs';
-      line: string;
+      status: 'disposed';
+      occurredAt: number;
     };
 
-export type AppMonitorListener = (event: AppMonitorEvent) => void;
-
-export type AppMonitor = {
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
+export type AppSession = {
   dispose: () => Promise<void>;
-  addListener: (listener: AppMonitorListener) => void;
-  removeListener: (listener: AppMonitorListener) => void;
+  getState: () => Promise<AppSessionState>;
+  getLogs: () => AppSessionLog[];
+  getCrashDetails?: (
+    options: CrashDetailsLookupOptions
+  ) => Promise<AppCrashDetails | null>;
+  addListener: (listener: AppSessionListener) => void;
+  removeListener: (listener: AppSessionListener) => void;
 };
 
 export type AndroidAppLaunchOptions = {
@@ -104,15 +115,8 @@ export type CollectNativeCoverageOptions = {
 };
 
 export type HarnessPlatformRunner = {
-  startApp: (options?: AppLaunchOptions) => Promise<void>;
-  restartApp: (options?: AppLaunchOptions) => Promise<void>;
-  stopApp: () => Promise<void>;
+  createAppSession: (options?: AppLaunchOptions) => Promise<AppSession>;
   dispose: () => Promise<void>;
-  isAppRunning: () => Promise<boolean>;
-  createAppMonitor: (options?: CreateAppMonitorOptions) => AppMonitor;
-  getCrashDetails?: (
-    options: CrashDetailsLookupOptions,
-  ) => Promise<AppCrashDetails | null>;
   collectNativeCoverage?: (
     options: CollectNativeCoverageOptions
   ) => Promise<string | null>;
@@ -120,6 +124,7 @@ export type HarnessPlatformRunner = {
 
 export type HarnessPlatformInitOptions = {
   signal: AbortSignal;
+  crashArtifactWriter?: CrashArtifactWriter;
 };
 
 export type HarnessCliCommandContext = {
@@ -130,10 +135,7 @@ export type HarnessCliCommandContext = {
 export type HarnessCliCommand = {
   name: string;
   aliases?: string[];
-  run: (
-    args: string[],
-    context: HarnessCliCommandContext
-  ) => Promise<void>;
+  run: (args: string[], context: HarnessCliCommandContext) => Promise<void>;
 };
 
 export type HarnessCliModule = {

@@ -285,9 +285,47 @@ export const startApp = async (
   const environment = getSimctlChildEnvironment(options);
   const argumentsList = options?.arguments ?? [];
 
-  await spawn('xcrun', ['simctl', 'launch', udid, bundleId, ...argumentsList], {
-    env: environment,
-  });
+  await spawn(
+    'xcrun',
+    [
+      'simctl',
+      'launch',
+      '--terminate-running-process',
+      udid,
+      bundleId,
+      ...argumentsList,
+    ],
+    {
+      env: environment,
+    },
+  );
+};
+
+export const launchAppProcess = (
+  udid: string,
+  bundleId: string,
+  options?: AppleAppLaunchOptions,
+): Subprocess => {
+  const environment = getSimctlChildEnvironment(options);
+  const argumentsList = options?.arguments ?? [];
+
+  return spawn(
+    'xcrun',
+    [
+      'simctl',
+      'launch',
+      '--console',
+      '--terminate-running-process',
+      udid,
+      bundleId,
+      ...argumentsList,
+    ],
+    {
+      env: environment,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
 };
 
 export const stopApp = async (

@@ -699,6 +699,13 @@ export const isAppRunning = async (
   adbId: string,
   bundleId: string,
 ): Promise<boolean> => {
+  return (await getAppPid(adbId, bundleId)) != null;
+};
+
+export const getAppPid = async (
+  adbId: string,
+  bundleId: string,
+): Promise<number | null> => {
   try {
     const { stdout } = await spawn(getAdbBinaryPath(), [
       '-s',
@@ -707,10 +714,15 @@ export const isAppRunning = async (
       'pidof',
       bundleId,
     ]);
-    return stdout.trim() !== '';
+    const pid = stdout
+      .trim()
+      .split(/\s+/)
+      .find((value) => value !== '');
+
+    return pid ? Number(pid) : null;
   } catch (error) {
     if (error instanceof SubprocessError && error.exitCode === 1) {
-      return false;
+      return null;
     }
 
     throw error;
@@ -778,6 +790,53 @@ export const startLogcat = (
     stdout: 'pipe',
     stderr: 'pipe',
   });
+
+export const DROPBOX_CRASH_TAGS = [
+  'data_app_crash',
+  'data_app_native_crash',
+] as const;
+
+export const getDropboxPrint = async (
+  adbId: string,
+  tags: readonly string[] = DROPBOX_CRASH_TAGS,
+): Promise<string> => {
+  // Android treats multiple args after --print as one search string, so each
+  // tag must be queried separately and merged on the host.
+  const outputs = await Promise.all(
+    tags.map(async (tag) => {
+      const { stdout } = await spawn(getAdbBinaryPath(), [
+        '-s',
+        adbId,
+        'shell',
+        'dumpsys',
+        'dropbox',
+        '--print',
+        tag,
+      ]);
+
+      return stdout;
+    }),
+  );
+
+  return outputs.join('\n');
+};
+
+export const getActivityExitInfo = async (
+  adbId: string,
+  bundleId: string,
+): Promise<string> => {
+  const { stdout } = await spawn(getAdbBinaryPath(), [
+    '-s',
+    adbId,
+    'shell',
+    'dumpsys',
+    'activity',
+    'exit-info',
+    bundleId,
+  ]);
+
+  return stdout;
+};
 
 export const getAvds = async (): Promise<string[]> => {
   try {
